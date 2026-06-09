@@ -3,155 +3,204 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>听你说升学 | 河北96个志愿逐条风险体检</title>
+    <title>知录升学 | 河北新高考志愿风险评估系统</title>
     <meta
       name="description"
-      content="听你说升学面向河北普通类考生，提供96个专业（类）+学校志愿逐条风险体检，识别投档、选科、章程、学费、校区和专业匹配风险。"
+      content="知录升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260609" />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <link rel="stylesheet" href="./styles.css?v=20260609-ui2" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="听你说升学首页">
-        <span class="brand-mark">听</span>
+      <a class="brand" href="#top" aria-label="知录升学首页">
+        <span class="brand-mark">知</span>
         <span class="brand-copy">
-          <strong>听你说升学</strong>
-          <small>河北志愿表风险体检</small>
+          <strong>知录升学</strong>
+          <small>高考风险评估平台</small>
         </span>
       </a>
       <nav class="main-nav" aria-label="主导航">
-        <a href="#position">适用人群</a>
-        <a href="#checkup">上传体检</a>
-        <a href="#dimensions">诊断维度</a>
+        <a href="#features">产品功能</a>
+        <a href="#sources">数据来源</a>
+        <a href="#dimensions">风险模型</a>
         <a href="#sample">报告样例</a>
-        <a href="#workflow">服务流程</a>
-        <a href="#pricing">套餐价格</a>
+        <a href="#audience">适用人群</a>
+        <a href="#pricing">价格方案</a>
       </nav>
       <div class="header-actions">
-        <a class="ghost-button" href="tel:15303171048">
-          <i data-lucide="phone" aria-hidden="true"></i>
-          15303171048
-        </a>
-        <a class="solid-button" href="#checkup">
-          <i data-lucide="upload-cloud" aria-hidden="true"></i>
-          立即体检
+        <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="报告中心登录咨询">登录</button>
+        <a class="solid-button compact" href="#checkup">
+          <i data-lucide="sparkles" aria-hidden="true"></i>
+          免费生成预览报告
         </a>
       </div>
     </header>
 
     <main id="top">
       <section class="hero-section" aria-labelledby="hero-title">
-        <div class="hero-grid" aria-hidden="true"></div>
+        <div class="hero-wave" aria-hidden="true"></div>
         <div class="hero-inner">
           <div class="hero-copy">
-            <span class="status-pill">
-              <span></span>
-              河北普通类本科批 / 专科批风险体检
-            </span>
-            <h1 id="hero-title">上传河北96个志愿，逐条查清风险</h1>
+            <h1 id="hero-title">河北新高考<br /><span>志愿风险评估系统</span></h1>
             <p>
-              我们不和大厂拼“自动生成志愿表”。听你说升学只做提交前最后一道安全检查：把每一个“专业（类）+学校”志愿拆开看，判断该保留、前移、后移、替换还是删除。
+              基于公开投档数据与可解释风险模型，帮你把96个志愿逐条做风险诊断、调顺序、找问题、留证据。
             </p>
+            <div class="trust-row" aria-label="核心能力">
+              <span><i data-lucide="shield-check" aria-hidden="true"></i> 官方数据提取</span>
+              <span><i data-lucide="network" aria-hidden="true"></i> 科学风险模型</span>
+              <span><i data-lucide="clipboard-check" aria-hidden="true"></i> 96志愿全检</span>
+              <span><i data-lucide="file-search" aria-hidden="true"></i> 结论可追溯</span>
+            </div>
             <div class="hero-actions">
               <a class="solid-button large" href="#checkup">
-                <i data-lucide="scan-search" aria-hidden="true"></i>
-                上传志愿表体检
+                免费生成预览报告
+                <i data-lucide="arrow-right" aria-hidden="true"></i>
               </a>
-              <a class="outline-button large" href="#sample">
-                <i data-lucide="file-text" aria-hidden="true"></i>
-                查看报告样例
-              </a>
+              <a class="outline-button large" href="#sample">查看报告样例</a>
             </div>
-            <div class="trust-row" aria-label="产品边界">
-              <span><strong>只做河北</strong> 普通类本科/专科批</span>
-              <span><strong>逐条解释</strong> 96个志愿都有意见</span>
-              <span data-public-data-status><strong>公开数据</strong> 正在读取覆盖情况</span>
+            <div class="data-note">
+              <span data-public-data-status>正在读取河北公开数据覆盖情况</span>
+              <span>结论用于提交前复核，不替代官方录取规则</span>
             </div>
           </div>
 
-          <aside class="hero-report" aria-label="河北志愿风险报告预览">
-            <div class="report-topbar">
-              <span>逐条诊断预览</span>
-              <strong>样例</strong>
+          <aside class="hero-report" aria-label="报告预览">
+            <div class="report-card-head">
+              <strong>我的报告预览</strong>
+              <span>示例</span>
             </div>
-            <div class="risk-score-card">
-              <div>
-                <small>整表风险</small>
-                <strong>中高风险</strong>
+            <div class="report-score-row">
+              <div class="score-main">
+                <small>志愿总数</small>
+                <strong>96 <span>个</span></strong>
               </div>
-              <div class="score-ring" aria-label="风险分68分">
-                <span>68</span>
+              <div class="risk-ring" aria-label="中风险">
+                <svg viewBox="0 0 80 80" aria-hidden="true">
+                  <circle cx="40" cy="40" r="32"></circle>
+                  <circle cx="40" cy="40" r="32"></circle>
+                </svg>
+                <div>
+                  <strong>中风险</strong>
+                  <small>总风险评估</small>
+                </div>
               </div>
             </div>
-            <div class="volunteer-preview">
+            <div class="risk-metrics">
               <article>
-                <span>第12志愿</span>
-                <h3>燕山大学 + 机械类</h3>
-                <p>近三年最低位次整体高于当前位次，且计划波动较大。建议保留，但放在冲刺区。</p>
-                <strong>可保留但前移</strong>
+                <span>高风险</span>
+                <strong>12</strong>
+                <small>占比 12.5%</small>
               </article>
               <article>
-                <span>第43志愿</span>
-                <h3>河北师范大学 + 汉语言文学</h3>
-                <p>专业匹配度高，但中段承接志愿偏少，需要补充同层次稳妥选项。</p>
-                <strong>建议保留</strong>
+                <span>梯度异常</span>
+                <strong>18</strong>
+                <small>占比 18.8%</small>
               </article>
               <article>
-                <span>第88志愿</span>
-                <h3>民办院校 + 高收费专业</h3>
-                <p>学费可能超过预算，不能直接作为有效保底。建议家长二次确认。</p>
-                <strong>谨慎填报</strong>
+                <span>保底不足</span>
+                <strong>7</strong>
+                <small>占比 7.3%</small>
+              </article>
+              <article>
+                <span>选科限制</span>
+                <strong>5</strong>
+                <small>存在限制</small>
               </article>
             </div>
-            <div class="report-footer">
-              <span>交付物：整表总评 + 96条意见 + 修改清单 + 提交前检查表</span>
+            <div class="distribution-card">
+              <div class="mini-title">
+                <span>风险分布</span>
+                <small>按志愿序号</small>
+              </div>
+              <div class="dist-bar" aria-hidden="true">
+                <span class="risk-high"></span>
+                <span class="risk-mid"></span>
+                <span class="risk-low"></span>
+                <span class="risk-safe"></span>
+              </div>
+              <div class="dist-labels">
+                <span>1-24 冲刺</span>
+                <span>25-48 稳妥</span>
+                <span>49-72 保底</span>
+                <span>73-96 兜底</span>
+              </div>
+            </div>
+            <div class="report-hint">
+              <i data-lucide="info" aria-hidden="true"></i>
+              建议优先处理前48个志愿的梯度与保底问题。
+              <a href="#checkup">查看完整预览</a>
             </div>
           </aside>
         </div>
       </section>
 
-      <section class="scope-band" id="position" aria-labelledby="position-title">
-        <div class="section-heading">
-          <span class="eyebrow">适用人群</span>
-          <h2 id="position-title">给已经做出志愿表的河北家庭，做提交前最后一次体检</h2>
-          <p>家长和学生真正需要的不是再看一堆泛泛排名，而是在提交前知道这张表哪里危险、哪里顺序不稳、哪些专业必须复核。</p>
+      <section class="reason-section" id="features" aria-labelledby="features-title">
+        <div class="section-heading compact-heading">
+          <h2 id="features-title">为什么越来越多家长选择做风险评估？</h2>
         </div>
-        <div class="scope-grid">
+        <div class="reason-grid">
           <article>
-            <i data-lucide="target" aria-hidden="true"></i>
-            <h3>适合谁使用</h3>
-            <ul>
-              <li>河北省普通类考生</li>
-              <li>物理科目组合 / 历史科目组合</li>
-              <li>本科批、专科批</li>
-              <li>已有初版志愿表，想做提交前复核</li>
-              <li>需要逐条解释，而不是只看概率分</li>
-            </ul>
+            <i data-lucide="file-warning" aria-hidden="true"></i>
+            <h3>政策复杂，信息不均衡</h3>
+            <p>新高考规则多变，院校专业要求繁杂，家长难以逐项掌握。</p>
           </article>
           <article>
-            <i data-lucide="circle-slash-2" aria-hidden="true"></i>
-            <h3>不适合谁</h3>
-            <ul>
-              <li>想要“保证录取”承诺的用户</li>
-              <li>尚未确定省份、科类和批次的用户</li>
-              <li>艺术、体育、对口、强基、综评等特殊路径</li>
-              <li>只想看营销话术，不愿核对真实限制的用户</li>
-            </ul>
+            <i data-lucide="activity" aria-hidden="true"></i>
+            <h3>志愿数量多，梯度难把握</h3>
+            <p>96个志愿如何拉开梯度、冲稳保比例如何配才合理。</p>
           </article>
-          <article class="is-strong">
-            <i data-lucide="shield-check" aria-hidden="true"></i>
-            <h3>家长为什么会买单</h3>
-            <p>家长真正焦虑的不是“有没有志愿表”，而是不知道已经整理好的96个志愿里，哪些有隐性风险、顺序是否合理、最后能不能放心提交。</p>
+          <article>
+            <i data-lucide="radar" aria-hidden="true"></i>
+            <h3>录取波动大，风险难识别</h3>
+            <p>位次前移、计划缩减、热门专业变化，都可能造成误判。</p>
+          </article>
+          <article>
+            <i data-lucide="wallet-cards" aria-hidden="true"></i>
+            <h3>盲目填报，成本高</h3>
+            <p>一次填报影响未来四年，提前体检能减少遗憾和返工。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="workflow-section" id="workflow" aria-labelledby="workflow-title">
+        <div class="section-heading compact-heading">
+          <h2 id="workflow-title">10分钟完成一份志愿风险诊断报告</h2>
+        </div>
+        <div class="step-grid">
+          <article>
+            <span>01</span>
+            <h3>录入考生信息</h3>
+            <p>输入成绩、位次、选科、体检限制等基础信息。</p>
+            <div class="step-visual user-card" aria-hidden="true"></div>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>导入志愿表</h3>
+            <p>支持Excel粘贴或上传，自动识别96个志愿。</p>
+            <div class="step-visual upload-card" aria-hidden="true"></div>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>系统自动诊断</h3>
+            <p>多维模型匹配历史数据，识别高风险点。</p>
+            <div class="step-visual radar-card" aria-hidden="true"></div>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>生成报告</h3>
+            <p>可查看、下载或分享，支持后续顾问复核。</p>
+            <div class="step-visual report-card-mini" aria-hidden="true"></div>
           </article>
         </div>
       </section>
 
       <section class="checkup-section" id="checkup" aria-labelledby="checkup-title">
         <div class="section-heading">
-          <span class="eyebrow">免费体验</span>
-          <h2 id="checkup-title">先录入考生信息和志愿表，生成一份逐条诊断预览</h2>
-          <p>粘贴或上传志愿表后，系统会优先匹配河北公开投档记录、分数位次和批次线，缺少证据的条目会提示人工复核。</p>
+          <span class="eyebrow">在线体检</span>
+          <h2 id="checkup-title">先生成预览，再决定是否购买完整报告</h2>
+          <p>输入考生位次与志愿表，系统会优先匹配已收录的河北公开投档记录，给出整表风险和逐条调整建议。</p>
         </div>
 
         <div class="checkup-grid">
@@ -166,10 +215,10 @@
                 <input id="province" name="province" value="河北" readonly />
               </div>
               <div>
-                <label for="year">年份</label>
+                <label for="year">填报年份</label>
                 <select id="year" name="year">
                   <option value="2026">2026</option>
-                  <option value="2027">2027</option>
+                  <option value="2025">2025</option>
                 </select>
               </div>
             </div>
@@ -240,20 +289,18 @@
             </div>
             <label class="upload-box" for="volunteerFile">
               <i data-lucide="file-spreadsheet" aria-hidden="true"></i>
-              <span>
-                <strong>上传Excel或CSV志愿表</strong>
-                <small id="fileStatus">支持 .xlsx / .xls / .csv。当前可直接解析CSV，也可以从表格复制后粘贴到下方。</small>
-              </span>
+              <span>上传Excel或CSV志愿表</span>
+              <small id="fileStatus">支持 .xlsx / .xls / .csv。也可以从表格复制后粘贴到下方。</small>
             </label>
             <input class="sr-only" id="volunteerFile" name="volunteerFile" type="file" accept=".xlsx,.xls,.csv,.txt" />
             <button class="ghost-button template-button" id="downloadTemplate" type="button">
               <i data-lucide="download" aria-hidden="true"></i>
-              下载CSV模板
+              下载志愿表模板
             </button>
             <div class="form-row">
-              <label for="volunteers">手动粘贴志愿表</label>
+              <label for="volunteers">志愿表内容</label>
               <textarea id="volunteers" name="volunteers" rows="8" placeholder="每行一个志愿：序号 学校名称 专业名称 批次"></textarea>
-              <small class="field-help">示例：1 河北大学 法学 本科批。可以先粘贴前20条体验，正式版支持完整96条。</small>
+              <small class="field-help">示例：1 河北大学 法学 本科批。可以先粘贴前20条预览，完整报告支持96条逐条分析。</small>
             </div>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
@@ -264,223 +311,271 @@
           <aside class="live-report" id="liveReport" aria-live="polite">
             <div class="live-empty">
               <i data-lucide="clipboard-list" aria-hidden="true"></i>
-              <h3>填写后生成河北志愿表风险体检</h3>
-              <p>系统会输出整表风险、冲稳保结构、逐条志愿动作建议和最需要修改的清单。</p>
+              <h3>报告预览会显示在这里</h3>
+              <p>提交后将展示整表风险、冲稳保比例、逐条志愿建议和可购买的完整报告入口。</p>
             </div>
           </aside>
         </div>
       </section>
 
-      <section class="section-band" id="dimensions" aria-labelledby="dimensions-title">
-        <div class="section-heading">
-          <span class="eyebrow">诊断维度</span>
-          <h2 id="dimensions-title">每个志愿拆成8个风险维度，结论说清楚、证据看得见</h2>
-          <p>系统先做规则判断和公开数据匹配，再把“为什么有风险、该怎么改”整理成家长能看懂的语言。</p>
+      <section class="dimensions-section" id="dimensions" aria-labelledby="dimensions-title">
+        <div class="section-heading compact-heading">
+          <h2 id="dimensions-title">核心诊断维度，全方位识别风险</h2>
         </div>
         <div class="dimension-grid">
-          <article><i data-lucide="trending-up" aria-hidden="true"></i><h3>投档风险</h3><p>对比用户位次与近三年最低投档位次，判断冲、稳、保。</p></article>
-          <article><i data-lucide="flame" aria-hidden="true"></i><h3>位次趋势</h3><p>识别专业热度上升、最低位次持续前移等风险。</p></article>
-          <article><i data-lucide="waveform" aria-hidden="true"></i><h3>波动风险</h3><p>近三年位次波动过大的志愿，不适合做核心保底。</p></article>
-          <article><i data-lucide="users-round" aria-hidden="true"></i><h3>计划变化</h3><p>招生计划缩减时提高风险等级，避免按去年低位判断。</p></article>
-          <article><i data-lucide="book-check" aria-hidden="true"></i><h3>选科限制</h3><p>选科不符是硬规则，必须删除或人工复核，不能模糊处理。</p></article>
-          <article><i data-lucide="scroll-text" aria-hidden="true"></i><h3>招生章程</h3><p>检查色觉、视力、身高、语种、口试、单科等隐性要求。</p></article>
-          <article><i data-lucide="badge-dollar-sign" aria-hidden="true"></i><h3>学费校区</h3><p>识别中外合作、高收费、分校区、异地校区和预算冲突。</p></article>
-          <article><i data-lucide="brain" aria-hidden="true"></i><h3>专业匹配</h3><p>提醒名称相近但培养方向不同的专业，减少误报和后悔。</p></article>
+          <article><i data-lucide="bar-chart-3" aria-hidden="true"></i><h3>冲稳保比例检查</h3><p>按位次差、招生计划与历史波动，识别冲刺过多或保底不足。</p></article>
+          <article><i data-lucide="line-chart" aria-hidden="true"></i><h3>历年录取位次分析</h3><p>查看近3-5年位次数据，分析录取概率与趋势变化。</p></article>
+          <article><i data-lucide="shield-check" aria-hidden="true"></i><h3>选科与专业限制检查</h3><p>自动检查选科、身体、语种、单科等限制条件。</p></article>
+          <article><i data-lucide="route" aria-hidden="true"></i><h3>志愿梯度强度检查</h3><p>识别顺序断档、梯度过密、保底失效，给出优化调整建议。</p></article>
         </div>
       </section>
 
       <section class="sample-section" id="sample" aria-labelledby="sample-title">
-        <div class="section-heading">
-          <span class="eyebrow">报告模板</span>
-          <h2 id="sample-title">用户付费买的是“逐条意见”，不是泛泛建议</h2>
-          <p>完整报告应该能让家长知道：哪些志愿可以保留、哪些要调整、哪些要拿出来人工复核。</p>
+        <div class="section-heading compact-heading">
+          <h2 id="sample-title">报告样例（部分内容展示）</h2>
         </div>
-        <div class="sample-layout">
-          <article class="sample-page">
-            <div class="page-head">
-              <span>首页总评</span>
-              <strong>河北省AI志愿风险体检报告</strong>
-            </div>
-            <div class="summary-grid">
-              <div><small>冲刺志愿</small><strong>28</strong></div>
-              <div><small>稳妥志愿</small><strong>43</strong></div>
-              <div><small>保底志愿</small><strong>25</strong></div>
-            </div>
-            <p>当前志愿表整体结构较完整，但前部冲刺志愿数量偏多，中间稳妥区略薄，后部保底志愿中存在若干用户低意愿专业。</p>
-          </article>
-          <article class="sample-page detail-card">
-            <div class="page-head">
-              <span>逐条意见</span>
-              <strong>第12志愿：燕山大学 + 机械类</strong>
-            </div>
-            <dl>
-              <div><dt>风险等级</dt><dd>中高风险</dd></div>
-              <div><dt>志愿类型</dt><dd>冲</dd></div>
-              <div><dt>建议动作</dt><dd>保留，但放在冲刺区</dd></div>
-            </dl>
-            <p>该专业近三年最低投档位次整体高于考生当前位次，且招生计划存在波动。若用户非常喜欢，可以保留在前部冲刺区，但不宜作为稳妥志愿。</p>
-          </article>
-          <article class="sample-page">
-            <div class="page-head">
-              <span>优先修改清单</span>
-              <strong>最需要处理的10个志愿</strong>
-            </div>
-            <ol class="priority-list">
-              <li>第12志愿：建议调整到冲刺区</li>
-              <li>第18志愿：选科限制需人工核验</li>
-              <li>第29志愿：学费超过预算，建议替换</li>
-              <li>第82志愿：保底有效性不足</li>
-            </ol>
-          </article>
+        <div class="sample-table-card">
+          <div class="sample-tabs" aria-label="报告栏目">
+            <span class="active">风险明细</span>
+            <span>梯度分析</span>
+            <span>整体概览</span>
+            <span>风险分布</span>
+            <span>调整建议</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>志愿序号</th>
+                  <th>院校</th>
+                  <th>专业 / 专业组</th>
+                  <th>2023年</th>
+                  <th>2024年</th>
+                  <th>2025年</th>
+                  <th>风险等级</th>
+                  <th>判断依据</th>
+                  <th>调整建议</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>8</td>
+                  <td>北京理工大学</td>
+                  <td>计算机类（工科试验班）</td>
+                  <td>2,150</td>
+                  <td>2,380</td>
+                  <td>2,102</td>
+                  <td><span class="tag high">高风险</span></td>
+                  <td>近三年位次均高于当前位次约1,300+位，录取把握偏低。</td>
+                  <td>建议下调至15-25位次区间</td>
+                </tr>
+                <tr>
+                  <td>27</td>
+                  <td>河北工业大学</td>
+                  <td>电气工程及其自动化</td>
+                  <td>8,965</td>
+                  <td>9,412</td>
+                  <td>8,721</td>
+                  <td><span class="tag medium">中风险</span></td>
+                  <td>位次较接近，专业热度较高，需关注招生计划变化。</td>
+                  <td>可作为稳妥志愿保留</td>
+                </tr>
+                <tr>
+                  <td>53</td>
+                  <td>河北大学</td>
+                  <td>汉语言文学（师范）</td>
+                  <td>15,320</td>
+                  <td>16,105</td>
+                  <td>15,002</td>
+                  <td><span class="tag low">低风险</span></td>
+                  <td>位次稳定且有安全边际，专业匹配度较高。</td>
+                  <td>可作为保底增强项</td>
+                </tr>
+                <tr>
+                  <td>79</td>
+                  <td>唐山师范学院</td>
+                  <td>小学教育</td>
+                  <td>26,110</td>
+                  <td>27,560</td>
+                  <td>26,980</td>
+                  <td><span class="tag safe">低风险</span></td>
+                  <td>位次宽裕，但专业方向需要与就业预期确认。</td>
+                  <td>保留充分，建议低置</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sample-foot">
+            <span>以上为报告部分内容，完整报告包含96个志愿逐条诊断与整体优化建议。</span>
+            <a class="solid-button compact" href="#checkup">免费生成完整报告预览 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
+          </div>
         </div>
       </section>
 
-      <section class="data-band" aria-labelledby="data-title">
-        <div class="section-heading">
-          <span class="eyebrow">数据依据</span>
-          <h2 id="data-title">结论必须能追溯到公开来源</h2>
-          <p>体检结果以河北省教育考试院公开资料、高校招生章程和用户填写信息为依据；缺少证据时，页面会明确标注需要复核。</p>
+      <section class="data-band" id="sources" aria-labelledby="sources-title">
+        <div class="section-heading compact-heading invert">
+          <h2 id="sources-title">权威数据，多重来源，结论可追溯</h2>
         </div>
         <div class="data-grid">
-          <a href="https://www.hebeea.edu.cn/ptgk/wnsj/" target="_blank" rel="noreferrer">
-            <i data-lucide="database" aria-hidden="true"></i>
-            <strong>河北省教育考试院公开资料</strong>
-            <span>投档情况、成绩统计表、批次线、征集计划等公开信息。</span>
-          </a>
-          <a href="https://www.sjz.gov.cn/columns/b69e27e8-4d0f-4b31-a67c-06481996d304/202506/26/31853241-42ac-4f42-87b1-a0fb37f6a722.html" target="_blank" rel="noreferrer">
-            <i data-lucide="search-check" aria-hidden="true"></i>
-            <strong>志愿填报辅助参考</strong>
-            <span>帮助家庭理解参考工具边界，避免把辅助建议当成录取承诺。</span>
-          </a>
-          <a href="https://gaokao.chsi.com.cn/" target="_blank" rel="noreferrer">
-            <i data-lucide="scroll-text" aria-hidden="true"></i>
-            <strong>高校招生章程</strong>
-            <span>抽取体检、语种、单科、学费、校区等章程风险规则。</span>
-          </a>
+          <article><i data-lucide="landmark" aria-hidden="true"></i><h3>官方招生计划</h3><p>对接教育考试院、院校招生简章与公开招生计划。</p></article>
+          <article><i data-lucide="database" aria-hidden="true"></i><h3>历年录取数据</h3><p>汇集近年院校专业投档分、最低分、位次与分段信息。</p></article>
+          <article><i data-lucide="file-text" aria-hidden="true"></i><h3>招生章程与规则</h3><p>结合高校招生章程、选科要求、体检要求等限制条件。</p></article>
+          <article><i data-lucide="badge-check" aria-hidden="true"></i><h3>结论可追溯</h3><p>每条判断均有数据依据与风险字段，支持导出复核。</p></article>
         </div>
+        <p class="source-note">数据更新至公开可用年份，系统结论仅供志愿提交前风险复核参考。</p>
       </section>
 
-      <section class="workflow-section" id="workflow" aria-labelledby="workflow-title">
-        <div class="section-heading">
-          <span class="eyebrow">服务流程</span>
-          <h2 id="workflow-title">10分钟拿到风险预览，关键问题再做人工复核</h2>
-          <p>产品先帮你把整张表扫一遍，快速找出最值得处理的志愿，再决定是否购买完整报告或人工复核。</p>
+      <section class="audience-section" id="audience" aria-labelledby="audience-title">
+        <div class="section-heading compact-heading">
+          <h2 id="audience-title">适用人群</h2>
         </div>
-        <div class="workflow-grid">
-          <article><span>01</span><h3>录入考生信息</h3><p>填写分数、位次、科目组合、预算和专业偏好。</p></article>
-          <article><span>02</span><h3>上传志愿表</h3><p>粘贴或上传学校+专业清单，系统逐条匹配公开记录。</p></article>
-          <article><span>03</span><h3>查看风险预览</h3><p>先看整表结构、冲稳保比例和最需要修改的志愿。</p></article>
-          <article><span>04</span><h3>获得完整意见</h3><p>需要提交前更稳妥时，再购买完整报告或人工复核。</p></article>
+        <div class="audience-grid">
+          <article>
+            <div>
+              <h3>高考家庭</h3>
+              <p>为孩子找到志愿风险，降低填报不确定性，把最后关口牢牢把住。</p>
+            </div>
+            <img src="https://images.unsplash.com/photo-1596495577886-d920f1fb7238?auto=format&fit=crop&w=520&q=80" alt="家长与学生讨论志愿" />
+          </article>
+          <article>
+            <div>
+              <h3>考生本人</h3>
+              <p>了解每个志愿可能面临的位次、选科、专业方向与学费问题。</p>
+            </div>
+            <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=520&q=80" alt="学生查看学习资料" />
+          </article>
+          <article>
+            <div>
+              <h3>志愿填报咨询师</h3>
+              <p>为客户提供标准化、可解释的诊断报告，提升专业度与服务效率。</p>
+            </div>
+            <img src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=520&q=80" alt="咨询师办公" />
+          </article>
         </div>
       </section>
 
       <section class="pricing-section" id="pricing" aria-labelledby="pricing-title">
-        <div class="section-heading">
-          <span class="eyebrow">商业化</span>
-          <h2 id="pricing-title">先用低价报告验证需求，再接人工复核</h2>
-          <p>第一阶段不要直接卖高价咨询，先让用户为“完整逐条意见”付费。</p>
+        <div class="section-heading compact-heading">
+          <h2 id="pricing-title">价格方案</h2>
         </div>
         <div class="pricing-grid">
           <article class="price-card">
-            <span class="plan-label">获客</span>
-            <h3>免费版</h3>
-            <strong>¥0</strong>
-            <p>查看总体风险和前5条问题，建立信任。</p>
+            <span class="plan-label">免费预览版</span>
+            <p>体验核心诊断，了解风险概况</p>
+            <div class="price">￥<strong>0</strong></div>
             <ul>
-              <li>整表风险等级</li>
-              <li>冲稳保结构概览</li>
-              <li>前5条风险提示</li>
+              <li>风险总览</li>
+              <li>前10个志愿诊断</li>
+              <li>风险分布概览</li>
             </ul>
-            <a class="outline-button" href="#checkup">免费体验</a>
+            <a class="solid-button" href="#checkup">立即体验</a>
+          </article>
+          <article class="price-card">
+            <span class="plan-label">单次报告版</span>
+            <p>完整体检，单次使用</p>
+            <div class="price">￥<strong>29.9</strong></div>
+            <ul>
+              <li>96志愿逐条诊断</li>
+              <li>梯度与保底分析</li>
+              <li>个性化调整建议</li>
+              <li>PDF报告下载</li>
+            </ul>
+            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="单次报告版">立即购买</button>
           </article>
           <article class="price-card featured">
-            <span class="plan-label">主推</span>
-            <h3>基础版</h3>
-            <strong>¥9.9</strong>
-            <p>查看96个志愿逐条风险等级。</p>
+            <span class="badge">推荐</span>
+            <span class="plan-label">家庭决策版</span>
+            <p>适合家庭深入讨论决策</p>
+            <div class="price">￥<strong>99</strong></div>
             <ul>
-              <li>96条风险标签</li>
-              <li>冲稳保分类</li>
-              <li>建议动作汇总</li>
+              <li>包含单次报告全部内容</li>
+              <li>3次报告生成权限</li>
+              <li>多方案对比分析</li>
+              <li>报告生成保存30天</li>
             </ul>
-            <button class="solid-button" type="button" data-open-modal="contactModal" data-package="¥9.9 基础版">预约上线提醒</button>
+            <button class="solid-button" type="button" data-open-modal="contactModal" data-package="家庭决策版">立即购买</button>
           </article>
           <article class="price-card">
-            <span class="plan-label">完整报告</span>
-            <h3>完整版</h3>
-            <strong>¥29.9</strong>
-            <p>逐条意见、替换建议、PDF导出。</p>
+            <span class="plan-label">咨询师版</span>
+            <p>为咨询师和机构服务打造</p>
+            <div class="price">￥<strong>199</strong><small>/月起</small></div>
             <ul>
-              <li>结论、原因、证据、建议</li>
-              <li>优先修改清单</li>
-              <li>PDF报告导出</li>
+              <li>无限次报告生成</li>
+              <li>批量导入与管理</li>
+              <li>客户留资与沟通</li>
+              <li>专属数据导出服务</li>
             </ul>
-            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="¥29.9 完整版">咨询完整版</button>
-          </article>
-          <article class="price-card">
-            <span class="plan-label">人工复核</span>
-            <h3>人工复核版</h3>
-            <strong>¥99-199</strong>
-            <p>AI报告基础上，由顾问人工检查一次。</p>
-            <ul>
-              <li>人工复核关键风险</li>
-              <li>电话或微信沟通</li>
-              <li>提交前检查清单</li>
-            </ul>
-            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="人工复核版">预约人工复核</button>
+            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="咨询师版">免费试用</button>
           </article>
         </div>
-      </section>
-
-      <section class="compliance-band" aria-labelledby="compliance-title">
-        <div>
-          <span class="eyebrow">服务边界</span>
-          <h2 id="compliance-title">不包装内部信息，不承诺录取结果</h2>
-          <p>本系统只做志愿表风险体检与辅助决策。正式填报请以河北省教育考试院系统、高校当年招生计划和招生章程为准。</p>
-        </div>
-        <div class="compliance-list">
-          <span><i data-lucide="check" aria-hidden="true"></i> 数据不足时提示人工复核</span>
-          <span><i data-lucide="check" aria-hidden="true"></i> 每条结论展示证据字段</span>
-          <span><i data-lucide="check" aria-hidden="true"></i> 不使用保证录取表述</span>
-        </div>
+        <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不保证录取结果。</p>
       </section>
 
       <section class="faq-section" id="faq" aria-labelledby="faq-title">
-        <div class="section-heading">
-          <span class="eyebrow">常见问题</span>
-          <h2 id="faq-title">家长购买前最需要确认的事</h2>
+        <div class="section-heading compact-heading">
+          <h2 id="faq-title">常见问题</h2>
         </div>
         <div class="faq-list">
           <details open>
-            <summary>为什么只做河北省？</summary>
-            <p>河北普通批以“专业（类）+学校”为志愿单位，一期可以把规则和数据做得更深。先做透河北，比泛泛覆盖全国更容易形成付费价值。</p>
+            <summary>报告的准确度有多高？</summary>
+            <p>系统会基于已收录公开数据、位次区间和规则限制给出风险诊断。志愿填报还受当年计划、考生偏好和同分竞争影响，因此报告用于提交前复核，不承诺录取结果。</p>
           </details>
           <details>
-            <summary>能不能自动生成96个志愿？</summary>
-            <p>一期不主打自动生成。核心场景是用户已经有志愿表后，系统做提交前逐条体检，指出风险、顺序和替换重点。</p>
+            <summary>数据会被保留吗？</summary>
+            <p>免费预览阶段仅用于生成本次诊断。后续上线账户体系后，会提供用户可控的报告保存、删除和下载能力。</p>
           </details>
           <details>
-            <summary>完整报告会不会自己编录取概率？</summary>
-            <p>不会。报告只解释已匹配到的公开资料和规则结果，不使用“保证录取”“内部数据”等表述。</p>
+            <summary>可以修改志愿后重新诊断吗？</summary>
+            <p>可以。预览版可直接重新提交，付费报告版会按套餐支持多次生成与对比。</p>
           </details>
           <details>
-            <summary>上传Excel后会立刻给完整报告吗？</summary>
-            <p>免费体验先给出风险预览。完整报告会展示逐条意见、证据摘要和优先修改清单；缺少证据的条目会提示人工复核。</p>
+            <summary>支持哪些省份？</summary>
+            <p>当前重点服务河北普通类本科批和专科批，其他省份将陆续接入。</p>
+          </details>
+          <details>
+            <summary>报告可以导出PDF吗？</summary>
+            <p>完整报告版本支持导出PDF，方便家庭沟通和咨询师复核。</p>
+          </details>
+          <details>
+            <summary>如何联系咨询顾问？</summary>
+            <p>可以点击页面中的咨询按钮，复制报告摘要后通过电话或微信联系顾问。</p>
           </details>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>听你说升学</strong>
-        <p>河北省96个“专业（类）+学校”志愿逐条风险体检。正式填报请以河北省教育考试院系统为准。</p>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <a class="brand" href="#top" aria-label="知录升学首页">
+            <span class="brand-mark">知</span>
+            <span class="brand-copy">
+              <strong>知录升学</strong>
+              <small>高考风险评估平台</small>
+            </span>
+          </a>
+          <p>用数据和规则，帮助每一位考生做出更稳妥的志愿决策。</p>
+        </div>
+        <div>
+          <h3>联系我们</h3>
+          <p>客服电话：<a href="tel:15303171048">15303171048</a> / <a href="tel:18132691050">18132691050</a></p>
+          <p>服务时间：9:00-18:00</p>
+          <p>服务范围：河北普通类本科批、专科批</p>
+        </div>
+        <div>
+          <h3>相关链接</h3>
+          <a href="#features">产品功能</a>
+          <a href="#sources">数据来源</a>
+          <a href="#pricing">价格方案</a>
+          <a href="#faq">常见问题</a>
+        </div>
+        <div class="qr-box" aria-label="微信咨询二维码">
+          <div class="qr-pattern" aria-hidden="true"></div>
+          <span>微信咨询</span>
+        </div>
       </div>
-      <div class="footer-links">
-        <a href="#checkup">上传体检</a>
-        <a href="#pricing">套餐价格</a>
-        <a href="tel:15303171048">15303171048</a>
-        <a href="tel:18132691050">18132691050</a>
+      <div class="footer-bottom">
+        <span>本网站仅提供数据分析与志愿风险提示，不保证录取结果，请理性决策。</span>
       </div>
     </footer>
 
@@ -490,8 +585,8 @@
         电话咨询
       </a>
       <a class="solid-button" href="#checkup">
-        <i data-lucide="upload-cloud" aria-hidden="true"></i>
-        上传体检
+        <i data-lucide="sparkles" aria-hidden="true"></i>
+        生成预览
       </a>
     </div>
 
@@ -515,14 +610,14 @@
             复制摘要
           </button>
         </div>
-        <div class="qr-placeholder" aria-label="微信报名入口占位">
-          <i data-lucide="message-circle" aria-hidden="true"></i>
-          <span>微信报名入口 / 企业微信二维码上线后替换此区域</span>
+        <div class="qr-placeholder" aria-label="微信咨询入口">
+          <div class="qr-pattern" aria-hidden="true"></div>
+          <span>微信咨询入口</span>
         </div>
       </div>
     </div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="./app.js?v=20260609"></script>
+    <script src="./app.js?v=20260609-ui2"></script>
   </body>
 </html>

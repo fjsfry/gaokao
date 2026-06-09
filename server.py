@@ -73,6 +73,16 @@ def supabase_get(table: str, params: dict[str, str], timeout: int = 30) -> list[
     return data
 
 
+def is_statement_timeout(exc: requests.HTTPError) -> bool:
+    if exc.response is None:
+        return False
+    try:
+        detail = exc.response.json()
+    except Exception:
+        detail = {}
+    return isinstance(detail, dict) and detail.get("code") == "57014"
+
+
 def clean_search_term(value: Any, max_len: int = 40) -> str:
     text = str(value or "").strip()
     text = text.replace("[公办]", "").replace("[民办]", "").replace("[独立学院]", "")
@@ -188,6 +198,42 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
     admission_matches: dict[str, list[dict[str, Any]]] = {}
     year_floor = max(2021, data_year - 2)
     years_filter = ",".join(str(year) for year in range(year_floor, data_year + 1))
+
+    def admission_params(
+        school: str,
+        major: str,
+        *,
+        fuzzy_school: bool = False,
+        include_major: bool = True,
+        exact_batch: bool = True,
+        limit: int = 18,
+    ) -> dict[str, str]:
+        params = {
+            "select": "year,batch,subject_group,school_name,major_name,min_score,min_rank,source_url,confidence_level",
+            "year": f"in.({years_filter})",
+            "subject_group": f"eq.{subject}",
+            "school_name": f"ilike.*{school}*" if fuzzy_school else f"eq.{school}",
+            "order": "year.desc,min_rank.asc.nullslast,min_score.desc",
+            "limit": str(limit),
+        }
+        if exact_batch:
+            params["batch"] = f"eq.{batch}"
+        elif "专科" in batch:
+            params["batch"] = "ilike.*专科*"
+        elif "本科" in batch:
+            params["batch"] = "ilike.*本科*"
+        if include_major and major:
+            params["major_name"] = f"ilike.*{major}*"
+        return params
+
+    def safe_admission_get(params: dict[str, str]) -> list[dict[str, Any]]:
+        try:
+            return supabase_get("admission_line", params)
+        except requests.HTTPError as exc:
+            if is_statement_timeout(exc):
+                return []
+            raise
+
     for volunteer in volunteers[:96]:
         order_no = str(volunteer.get("orderNo") or "")
         school = clean_search_term(volunteer.get("schoolName"))
@@ -195,25 +241,15 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         if not order_no or not school:
             continue
 
-        params = {
-            "select": "year,batch,subject_group,school_name,major_name,min_score,min_rank,source_url,confidence_level",
-            "year": f"in.({years_filter})",
-            "subject_group": f"eq.{subject}",
-            "school_name": f"ilike.*{school}*",
-            "order": "year.desc,min_rank.asc.nullslast,min_score.desc",
-            "limit": "18",
-        }
-        if "专科" in batch:
-            params["batch"] = "ilike.*专科*"
-        elif "本科" in batch:
-            params["batch"] = "ilike.*本科*"
-        if major:
-            params["major_name"] = f"ilike.*{major}*"
-
-        rows = supabase_get("admission_line", params)
+        rows = safe_admission_get(admission_params(school, major))
         if not rows and major:
-            params.pop("major_name", None)
-            rows = supabase_get("admission_line", params)
+            rows = safe_admission_get(admission_params(school, major, include_major=False))
+        if not rows:
+            rows = safe_admission_get(admission_params(school, major, exact_batch=False, limit=10))
+        if not rows:
+            rows = safe_admission_get(
+                admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=True, limit=8)
+            )
         admission_matches[order_no] = enrich_rank_from_score(rows)
 
     return {

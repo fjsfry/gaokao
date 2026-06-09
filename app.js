@@ -680,7 +680,7 @@ function initFileUpload() {
       });
       reader.readAsText(file, "utf-8");
     } else {
-      status.textContent = `已选择：${file.name}。Excel将在正式版进入后台解析；当前可先粘贴表格内容体验。`;
+      status.textContent = `已选择：${file.name}。当前可先粘贴表格内容生成预览，Excel智能解析能力将逐步开放。`;
     }
   });
 }
