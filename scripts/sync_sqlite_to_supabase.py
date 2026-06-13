@@ -78,7 +78,7 @@ def supabase_request(
     headers = {
         "apikey": service_key,
         "authorization": f"Bearer {service_key}",
-        "prefer": "return=minimal",
+        "prefer": "resolution=merge-duplicates,return=minimal" if method == "POST" else "return=minimal",
     }
     if rows is not None:
         data = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -123,7 +123,7 @@ def clear_table(table: str, service_key: str, supabase_url: str) -> None:
         headers={
             "apikey": service_key,
             "authorization": f"Bearer {service_key}",
-            "prefer": "resolution=merge-duplicates,return=minimal" if method == "POST" else "return=minimal",
+            "prefer": "return=minimal",
         },
     )
     with urllib.request.urlopen(request, timeout=90) as response:

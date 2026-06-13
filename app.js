@@ -19,6 +19,64 @@ function createIcons() {
   }
 }
 
+const viewAliases = {
+  top: "home",
+  features: "features",
+  workflow: "features",
+  checkup: "checkup",
+  sources: "sources",
+  dimensions: "dimensions",
+  sample: "sample",
+  audience: "pricing",
+  pricing: "pricing",
+  faq: "pricing"
+};
+
+function getAvailableViews() {
+  return new Set(Array.from(document.querySelectorAll(".app-view[data-view]")).map((section) => section.dataset.view));
+}
+
+function getRouteView() {
+  const raw = decodeURIComponent(window.location.hash || "")
+    .replace(/^#\/?/, "")
+    .split(/[?&]/)[0]
+    .trim();
+  const requested = viewAliases[raw] || raw || "home";
+  return getAvailableViews().has(requested) ? requested : "home";
+}
+
+function setActiveView(view = getRouteView(), options = {}) {
+  const { scroll = true, normalizeHash = false } = options;
+  document.querySelectorAll(".app-view[data-view]").forEach((section) => {
+    section.classList.toggle("is-active", section.dataset.view === view);
+  });
+  document.querySelectorAll("[data-nav-view]").forEach((link) => {
+    link.classList.toggle("is-active", link.dataset.navView === view);
+  });
+  document.body.dataset.currentView = view;
+  if (normalizeHash && window.location.hash !== `#/${view}`) {
+    window.history.replaceState(null, "", `#/${view}`);
+  }
+  if (scroll) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  createIcons();
+}
+
+function initNavigation() {
+  setActiveView(getRouteView(), { scroll: false, normalizeHash: true });
+  window.addEventListener("hashchange", () => setActiveView(getRouteView(), { scroll: true, normalizeHash: true }));
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#/"]');
+    if (!link) return;
+    const view = viewAliases[link.getAttribute("href").replace(/^#\/?/, "")] || "home";
+    if (view === document.body.dataset.currentView) {
+      event.preventDefault();
+      setActiveView(view, { scroll: true });
+    }
+  });
+}
+
 function escapeHTML(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -426,8 +484,23 @@ function renderReportError(message) {
   createIcons();
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 22000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("公开数据匹配超时，已切换为基础风险预览");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function requestDataContext(formData, volunteers) {
-  const response = await fetch("/api/checkup", {
+  const response = await fetchWithTimeout("/api/checkup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ formData, volunteers })
@@ -660,6 +733,82 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+function findHeaderIndex(rows) {
+  return rows.findIndex((row) => {
+    const text = row.map((cell) => String(cell || "")).join(" ");
+    return /学校|院校/.test(text) && /专业/.test(text);
+  });
+}
+
+function findColumnIndex(headers, patterns) {
+  return headers.findIndex((header) => patterns.some((pattern) => pattern.test(String(header || ""))));
+}
+
+function rowsToVolunteerText(rows) {
+  const cleanedRows = rows
+    .map((row) => row.map((cell) => String(cell ?? "").trim()))
+    .filter((row) => row.some(Boolean));
+  if (!cleanedRows.length) return "";
+
+  const headerIndex = findHeaderIndex(cleanedRows);
+  if (headerIndex >= 0) {
+    const headers = cleanedRows[headerIndex];
+    const orderIndex = findColumnIndex(headers, [/序号/, /^志愿$/, /志愿序/]);
+    const schoolIndex = findColumnIndex(headers, [/学校名称/, /院校名称/, /院校/]);
+    const majorIndex = findColumnIndex(headers, [/专业名称/, /专业/]);
+    const batchIndex = findColumnIndex(headers, [/批次/]);
+    const subjectIndex = findColumnIndex(headers, [/科目组合/, /选科/, /科类/]);
+
+    if (schoolIndex >= 0 && majorIndex >= 0) {
+      return cleanedRows
+        .slice(headerIndex + 1)
+        .map((row, index) => {
+          const order = row[orderIndex] || String(index + 1);
+          const school = row[schoolIndex] || "";
+          const major = row[majorIndex] || "";
+          const batch = row[batchIndex] || "本科批";
+          const subject = row[subjectIndex] || "";
+          return [order, school, major, batch, subject].filter(Boolean).join(" ");
+        })
+        .filter((line) => /[\u4e00-\u9fa5]/.test(line))
+        .slice(0, 96)
+        .join("\n");
+    }
+  }
+
+  return cleanedRows
+    .map((row, index) => {
+      const hasOrder = /^\d+$/.test(row[0] || "");
+      return [hasOrder ? "" : String(index + 1), ...row.slice(0, 8)].filter(Boolean).join(" ");
+    })
+    .filter((line) => /[\u4e00-\u9fa5]/.test(line))
+    .slice(0, 96)
+    .join("\n");
+}
+
+function parseWorkbookFile(file, onSuccess, onError) {
+  if (!window.XLSX) {
+    onError(new Error("Excel解析组件加载失败，请刷新页面或先导出CSV后上传"));
+    return;
+  }
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const workbook = window.XLSX.read(reader.result, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("工作簿没有可读取的工作表");
+      const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], { header: 1, defval: "" });
+      const text = rowsToVolunteerText(rows);
+      if (!text) throw new Error("没有识别到学校和专业信息");
+      onSuccess(text, firstSheetName);
+    } catch (error) {
+      onError(error);
+    }
+  });
+  reader.addEventListener("error", () => onError(new Error("文件读取失败")));
+  reader.readAsArrayBuffer(file);
+}
+
 function initFileUpload() {
   const input = document.querySelector("#volunteerFile");
   const status = document.querySelector("#fileStatus");
@@ -679,13 +828,27 @@ function initFileUpload() {
         status.textContent = `已解析：${file.name}。请确认下方志愿表内容后生成报告。`;
       });
       reader.readAsText(file, "utf-8");
+    } else if (/\.(xlsx|xls)$/i.test(file.name)) {
+      status.textContent = `正在解析：${file.name}`;
+      parseWorkbookFile(
+        file,
+        (text, sheetName) => {
+          textarea.value = text;
+          status.textContent = `已解析：${file.name} / ${sheetName}，识别到${parseVolunteers(text).length}条志愿。`;
+        },
+        (error) => {
+          status.textContent = `${error.message}。可以复制表格内容粘贴到下方继续生成预览。`;
+        }
+      );
     } else {
-      status.textContent = `已选择：${file.name}。当前可先粘贴表格内容生成预览，Excel智能解析能力将逐步开放。`;
+      status.textContent = `已选择：${file.name}。当前支持 Excel、CSV、TXT，其他格式请复制表格内容粘贴到下方。`;
     }
   });
 }
 
 function initInteractions() {
+  initNavigation();
+
   const volunteerTextarea = document.querySelector("#volunteers");
   if (volunteerTextarea && !volunteerTextarea.value.trim()) {
     volunteerTextarea.value = sampleVolunteerText;

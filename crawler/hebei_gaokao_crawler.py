@@ -34,7 +34,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
-from urllib.parse import urljoin, urlparse, unquote
+from urllib.parse import urljoin, urlparse, urlunparse, unquote
 
 import pandas as pd
 import requests
@@ -79,6 +79,11 @@ SEED_URLS = [
     "https://www.hebeea.edu.cn/ptgk/zcda/",
     "https://www.hebeea.edu.cn/ptgk/xxgs/",
 ]
+
+
+def default_years() -> list[int]:
+    current_year = datetime.now().year
+    return list(range(2021, max(current_year, 2026) + 1))
 
 
 @dataclass
@@ -142,6 +147,12 @@ def is_allowed_url(url: str) -> bool:
         return False
 
 
+def normalize_url(url: str) -> str:
+    parsed = urlparse(url)
+    path = parsed.path or "/"
+    return urlunparse((parsed.scheme, parsed.netloc.lower(), path, "", parsed.query, ""))
+
+
 def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -179,13 +190,17 @@ def fetch(session: requests.Session, url: str, timeout: int = 25) -> Optional[re
 def extract_links(base_url: str, html: str) -> list[tuple[str, str]]:
     soup = BeautifulSoup(html, "lxml")
     links: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for a in soup.find_all("a", href=True):
         href = a.get("href", "").strip()
         text = clean_text(a.get_text(" "))
         if not href or href.startswith("javascript:") or href.startswith("#"):
             continue
-        full = urljoin(base_url, href)
+        full = normalize_url(urljoin(base_url, href))
         if is_allowed_url(full):
+            if full in seen:
+                continue
+            seen.add(full)
             links.append((text, full))
     return links
 
@@ -248,20 +263,27 @@ def extract_attachment_links(article_url: str, html: str) -> list[tuple[str, str
     soup = BeautifulSoup(html, "lxml")
     links = extract_links(article_url, html)
     out: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for text, url in links:
         path = urlparse(url).path
         ext = Path(path).suffix.lower()
         if ext in ATTACHMENT_EXTENSIONS or urlparse(url).netloc == "file.hebeea.edu.cn":
+            if url in seen:
+                continue
+            seen.add(url)
             out.append((text, url))
     for img in soup.find_all("img", src=True):
         src = img.get("src", "").strip()
         if not src:
             continue
-        url = urljoin(article_url, src)
+        url = normalize_url(urljoin(article_url, src))
         if not is_allowed_url(url):
             continue
         ext = Path(urlparse(url).path).suffix.lower()
         if ext in ATTACHMENT_EXTENSIONS:
+            if url in seen:
+                continue
+            seen.add(url)
             alt = clean_text(img.get("alt") or img.get("title") or Path(urlparse(url).path).name)
             out.append((alt, url))
     return out
@@ -337,6 +359,26 @@ def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+
+
+def write_manifest(out_dir: Path, args: argparse.Namespace, articles: list[ArticleRecord], files: list[FileRecord]) -> None:
+    years = sorted({year for year in (year_from_text_or_url(item.title, item.url) for item in articles) if year})
+    payload = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "command": args.command,
+        "requested_years": args.years or [],
+        "discovered_years": years,
+        "article_count": len(articles),
+        "file_count": len(files),
+        "allowed_domains": sorted(ALLOWED_DOMAINS),
+        "seed_urls": SEED_URLS,
+        "delay_seconds": args.delay,
+        "max_pages": args.max_pages,
+        "max_list_visits": args.max_list_visits,
+    }
+    manifest_path = out_dir / "metadata" / "crawl_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def init_db(db_path: Path) -> None:
@@ -446,6 +488,7 @@ def crawl(args: argparse.Namespace) -> None:
     logging.info("开始发现文章链接。候选页面数：%s", len(queue))
     while queue:
         url = queue.pop(0)
+        url = normalize_url(url)
         if url in seen:
             continue
         seen.add(url)
@@ -453,7 +496,7 @@ def crawl(args: argparse.Namespace) -> None:
         time.sleep(args.delay)
         if resp is None:
             continue
-        links = extract_links(url, resp.text)
+        links = extract_links(resp.url, resp.text)
         for text, link in links:
             if is_article_url(link) and keep_by_year_and_keyword(text, link, years, keywords):
                 article_urls[link] = text
@@ -486,7 +529,7 @@ def crawl(args: argparse.Namespace) -> None:
         article_records.append(rec)
         upsert_article(db_path, rec)
 
-        attachments = extract_attachment_links(url, resp.text)
+        attachments = extract_attachment_links(resp.url, resp.text)
         for link_text, file_url in attachments:
             f_rec = download_file(
                 session=session,
@@ -503,6 +546,7 @@ def crawl(args: argparse.Namespace) -> None:
 
     write_csv(meta_dir / "articles.csv", [asdict(x) for x in article_records], list(ArticleRecord.__dataclass_fields__.keys()))
     write_csv(meta_dir / "files.csv", [asdict(x) for x in file_records], list(FileRecord.__dataclass_fields__.keys()))
+    write_manifest(out, args, article_records, file_records)
     logging.info("完成。文章：%s，附件：%s，数据库：%s", len(article_records), len(file_records), db_path)
 
 
@@ -611,7 +655,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     p1 = sub.add_parser("crawl", help="抓取河北省教育考试院公开文章和附件")
     p1.add_argument("--out", default="data", help="输出目录，默认 data")
-    p1.add_argument("--years", nargs="*", type=int, default=[2022, 2023, 2024, 2025, 2026], help="年份过滤")
+    p1.add_argument("--years", nargs="*", type=int, default=default_years(), help="年份过滤，默认 2021 到当前年份")
     p1.add_argument("--keywords", nargs="*", default=None, help="关键词过滤；默认使用内置高考关键词")
     p1.add_argument("--delay", type=float, default=1.2, help="请求间隔秒数，默认 1.2")
     p1.add_argument("--max-pages", type=int, default=20, help="每个频道尝试翻页数，默认 20")

@@ -19,9 +19,17 @@ import requests
 
 
 ROOT = Path(__file__).resolve().parent
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-pro"
 DEFAULT_SUPABASE_URL = "https://tspotlvffujnlnmsglxj.supabase.co"
+SUPPORTED_DEEPSEEK_MODELS = {
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    # Kept for compatibility with older deployments. DeepSeek has announced
+    # these legacy names will be retired after 2026-07-24.
+    "deepseek-chat",
+    "deepseek-reasoner",
+}
 PUBLIC_TABLES = {
     "admission_line",
     "available_data_years",
@@ -53,7 +61,26 @@ def get_supabase_config() -> tuple[str, str]:
     return url, key
 
 
-def supabase_get(table: str, params: dict[str, str], timeout: int = 30) -> list[dict[str, Any]]:
+def get_deepseek_config() -> tuple[str, str]:
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is not configured on the server.")
+    model = os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if model not in SUPPORTED_DEEPSEEK_MODELS:
+        allowed = ", ".join(sorted(SUPPORTED_DEEPSEEK_MODELS))
+        raise RuntimeError(f"Unsupported DEEPSEEK_MODEL '{model}'. Allowed models: {allowed}.")
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL).strip().rstrip("/")
+    if not base_url.startswith("https://"):
+        raise RuntimeError("DEEPSEEK_BASE_URL must be an https URL.")
+    return api_key, model
+
+
+def deepseek_chat_url() -> str:
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL).strip().rstrip("/")
+    return f"{base_url}/chat/completions"
+
+
+def supabase_get(table: str, params: dict[str, str], timeout: int = 20) -> list[dict[str, Any]]:
     if table not in PUBLIC_TABLES:
         raise ValueError(f"Unsupported public table: {table}")
     url, key = get_supabase_config()
@@ -130,6 +157,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
             "select": "year,admission_line_count,score_rank_count,batch_line_count",
             "order": "year.desc",
         },
+        timeout=12,
     )
     data_year = pick_data_year(requested_year, available_rows)
 
@@ -141,6 +169,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
             "subject_group": f"eq.{subject}",
             "order": "batch.asc",
         },
+        timeout=12,
     )
 
     score_rank = []
@@ -154,6 +183,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
                 "score": f"eq.{score}",
                 "limit": "1",
             },
+            timeout=12,
         )
 
     rank_cache: dict[tuple[int, int], int] = {}
@@ -181,6 +211,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
                     "subject_group": f"eq.{subject}",
                     "score": f"in.({score_filter})",
                 },
+                timeout=8,
             )
             for rank_row in rank_rows:
                 rank_cache[(parse_int(rank_row.get("year")), parse_int(rank_row.get("score")))] = parse_int(
@@ -229,7 +260,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
 
     def safe_admission_get(params: dict[str, str]) -> list[dict[str, Any]]:
         try:
-            return supabase_get("admission_line", params)
+            return supabase_get("admission_line", params, timeout=8)
         except requests.HTTPError as exc:
             if is_statement_timeout(exc):
                 return []
@@ -352,6 +383,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "model": os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL),
+                    "deepseek_base_url": os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL),
                     "has_api_key": bool(os.environ.get("DEEPSEEK_API_KEY")),
                     "has_public_data_key": bool(os.environ.get("SUPABASE_ANON_KEY")),
                 }
@@ -405,12 +437,13 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
-        if not api_key:
+        try:
+            api_key, model = get_deepseek_config()
+        except Exception as exc:
             self.write_json(
                 {
                     "ok": False,
-                    "error": "DEEPSEEK_API_KEY is not configured on the server.",
+                    "error": str(exc),
                 },
                 status=HTTPStatus.SERVICE_UNAVAILABLE,
             )
@@ -425,7 +458,6 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.write_json({"ok": False, "error": f"Invalid JSON: {exc}"}, status=HTTPStatus.BAD_REQUEST)
             return
 
-        model = os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
         body = {
             "model": model,
             "messages": build_messages(payload),
@@ -438,7 +470,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
         try:
             response = requests.post(
-                DEEPSEEK_URL,
+                deepseek_chat_url(),
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
@@ -448,7 +480,10 @@ class AppHandler(SimpleHTTPRequestHandler):
             )
             response.raise_for_status()
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            choices = data.get("choices") or []
+            content = (choices[0].get("message") or {}).get("content") if choices else ""
+            if not content:
+                raise RuntimeError("DeepSeek response did not include report content.")
             self.write_json(
                 {
                     "ok": True,

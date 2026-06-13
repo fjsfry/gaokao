@@ -10,11 +10,11 @@
     />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260609-ui2" />
+    <link rel="stylesheet" href="./styles.css?v=20260613-commercial" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="知录升学首页">
+      <a class="brand" href="#/home" aria-label="知录升学首页">
         <span class="brand-mark">知</span>
         <span class="brand-copy">
           <strong>知录升学</strong>
@@ -22,16 +22,17 @@
         </span>
       </a>
       <nav class="main-nav" aria-label="主导航">
-        <a href="#features">产品功能</a>
-        <a href="#sources">数据来源</a>
-        <a href="#dimensions">风险模型</a>
-        <a href="#sample">报告样例</a>
-        <a href="#audience">适用人群</a>
-        <a href="#pricing">价格方案</a>
+        <a href="#/home" data-nav-view="home">首页</a>
+        <a href="#/checkup" data-nav-view="checkup">风险评估</a>
+        <a href="#/features" data-nav-view="features">产品流程</a>
+        <a href="#/sources" data-nav-view="sources">数据中心</a>
+        <a href="#/dimensions" data-nav-view="dimensions">风险模型</a>
+        <a href="#/sample" data-nav-view="sample">报告样例</a>
+        <a href="#/pricing" data-nav-view="pricing">服务方案</a>
       </nav>
       <div class="header-actions">
         <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="报告中心登录咨询">登录</button>
-        <a class="solid-button compact" href="#checkup">
+        <a class="solid-button compact" href="#/checkup">
           <i data-lucide="sparkles" aria-hidden="true"></i>
           免费生成预览报告
         </a>
@@ -39,7 +40,7 @@
     </header>
 
     <main id="top">
-      <section class="hero-section" aria-labelledby="hero-title">
+      <section class="hero-section app-view is-active" data-view="home" aria-labelledby="hero-title">
         <div class="hero-wave" aria-hidden="true"></div>
         <div class="hero-inner">
           <div class="hero-copy">
@@ -54,11 +55,11 @@
               <span><i data-lucide="file-search" aria-hidden="true"></i> 结论可追溯</span>
             </div>
             <div class="hero-actions">
-              <a class="solid-button large" href="#checkup">
+              <a class="solid-button large" href="#/checkup">
                 免费生成预览报告
                 <i data-lucide="arrow-right" aria-hidden="true"></i>
               </a>
-              <a class="outline-button large" href="#sample">查看报告样例</a>
+              <a class="outline-button large" href="#/sample">查看报告样例</a>
             </div>
             <div class="data-note">
               <span data-public-data-status>正在读取河北公开数据覆盖情况</span>
@@ -130,13 +131,13 @@
             <div class="report-hint">
               <i data-lucide="info" aria-hidden="true"></i>
               建议优先处理前48个志愿的梯度与保底问题。
-              <a href="#checkup">查看完整预览</a>
+              <a href="#/checkup">查看完整预览</a>
             </div>
           </aside>
         </div>
       </section>
 
-      <section class="reason-section" id="features" aria-labelledby="features-title">
+      <section class="reason-section app-view" data-view="features" id="features" aria-labelledby="features-title">
         <div class="section-heading compact-heading">
           <h2 id="features-title">为什么越来越多家长选择做风险评估？</h2>
         </div>
@@ -164,7 +165,7 @@
         </div>
       </section>
 
-      <section class="workflow-section" id="workflow" aria-labelledby="workflow-title">
+      <section class="workflow-section app-view" data-view="features" id="workflow" aria-labelledby="workflow-title">
         <div class="section-heading compact-heading">
           <h2 id="workflow-title">10分钟完成一份志愿风险诊断报告</h2>
         </div>
@@ -196,7 +197,7 @@
         </div>
       </section>
 
-      <section class="checkup-section" id="checkup" aria-labelledby="checkup-title">
+      <section class="checkup-section app-view" data-view="checkup" id="checkup" aria-labelledby="checkup-title">
         <div class="section-heading">
           <span class="eyebrow">在线体检</span>
           <h2 id="checkup-title">先生成预览，再决定是否购买完整报告</h2>
@@ -318,7 +319,7 @@
         </div>
       </section>
 
-      <section class="dimensions-section" id="dimensions" aria-labelledby="dimensions-title">
+      <section class="dimensions-section app-view" data-view="dimensions" id="dimensions" aria-labelledby="dimensions-title">
         <div class="section-heading compact-heading">
           <h2 id="dimensions-title">核心诊断维度，全方位识别风险</h2>
         </div>
@@ -330,7 +331,7 @@
         </div>
       </section>
 
-      <section class="sample-section" id="sample" aria-labelledby="sample-title">
+      <section class="sample-section app-view" data-view="sample" id="sample" aria-labelledby="sample-title">
         <div class="section-heading compact-heading">
           <h2 id="sample-title">报告样例（部分内容展示）</h2>
         </div>
@@ -407,12 +408,12 @@
           </div>
           <div class="sample-foot">
             <span>以上为报告部分内容，完整报告包含96个志愿逐条诊断与整体优化建议。</span>
-            <a class="solid-button compact" href="#checkup">免费生成完整报告预览 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
+            <a class="solid-button compact" href="#/checkup">免费生成完整报告预览 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
           </div>
         </div>
       </section>
 
-      <section class="data-band" id="sources" aria-labelledby="sources-title">
+      <section class="data-band app-view" data-view="sources" id="sources" aria-labelledby="sources-title">
         <div class="section-heading compact-heading invert">
           <h2 id="sources-title">权威数据，多重来源，结论可追溯</h2>
         </div>
@@ -425,7 +426,7 @@
         <p class="source-note">数据更新至公开可用年份，系统结论仅供志愿提交前风险复核参考。</p>
       </section>
 
-      <section class="audience-section" id="audience" aria-labelledby="audience-title">
+      <section class="audience-section app-view" data-view="pricing" id="audience" aria-labelledby="audience-title">
         <div class="section-heading compact-heading">
           <h2 id="audience-title">适用人群</h2>
         </div>
@@ -454,7 +455,7 @@
         </div>
       </section>
 
-      <section class="pricing-section" id="pricing" aria-labelledby="pricing-title">
+      <section class="pricing-section app-view" data-view="pricing" id="pricing" aria-labelledby="pricing-title">
         <div class="section-heading compact-heading">
           <h2 id="pricing-title">价格方案</h2>
         </div>
@@ -468,7 +469,7 @@
               <li>前10个志愿诊断</li>
               <li>风险分布概览</li>
             </ul>
-            <a class="solid-button" href="#checkup">立即体验</a>
+            <a class="solid-button" href="#/checkup">立即体验</a>
           </article>
           <article class="price-card">
             <span class="plan-label">单次报告版</span>
@@ -511,7 +512,7 @@
         <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不保证录取结果。</p>
       </section>
 
-      <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <section class="faq-section app-view" data-view="pricing" id="faq" aria-labelledby="faq-title">
         <div class="section-heading compact-heading">
           <h2 id="faq-title">常见问题</h2>
         </div>
@@ -547,7 +548,7 @@
     <footer class="site-footer">
       <div class="footer-inner">
         <div class="footer-brand">
-          <a class="brand" href="#top" aria-label="知录升学首页">
+          <a class="brand" href="#/home" aria-label="知录升学首页">
             <span class="brand-mark">知</span>
             <span class="brand-copy">
               <strong>知录升学</strong>
@@ -564,10 +565,10 @@
         </div>
         <div>
           <h3>相关链接</h3>
-          <a href="#features">产品功能</a>
-          <a href="#sources">数据来源</a>
-          <a href="#pricing">价格方案</a>
-          <a href="#faq">常见问题</a>
+          <a href="#/features">产品功能</a>
+          <a href="#/sources">数据来源</a>
+          <a href="#/pricing">价格方案</a>
+          <a href="#/pricing">常见问题</a>
         </div>
         <div class="qr-box" aria-label="微信咨询二维码">
           <div class="qr-pattern" aria-hidden="true"></div>
@@ -584,7 +585,7 @@
         <i data-lucide="phone" aria-hidden="true"></i>
         电话咨询
       </a>
-      <a class="solid-button" href="#checkup">
+      <a class="solid-button" href="#/checkup">
         <i data-lucide="sparkles" aria-hidden="true"></i>
         生成预览
       </a>
@@ -618,6 +619,7 @@
     </div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="./app.js?v=20260609-ui2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="./app.js?v=20260613-commercial"></script>
   </body>
 </html>

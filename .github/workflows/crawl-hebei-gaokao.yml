@@ -1,4 +1,5 @@
 name: Crawl Hebei Gaokao Public Data
+run-name: Crawl Hebei Gaokao data (${{ inputs.years || '2021-2026' }})
 
 on:
   schedule:
@@ -8,7 +9,20 @@ on:
       years:
         description: "Years to crawl, separated by spaces"
         required: false
-        default: "2026"
+        default: "2021 2022 2023 2024 2025 2026"
+      max_pages:
+        description: "Max listing pages per seed channel"
+        required: false
+        default: "80"
+      max_list_visits:
+        description: "Max discovered list pages to visit"
+        required: false
+        default: "1000"
+      replace_existing:
+        description: "Clear Supabase tables before import. Use only for intentional full rebuilds."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: hebei-gaokao-crawler
@@ -22,9 +36,17 @@ jobs:
       SUPABASE_URL: https://tspotlvffujnlnmsglxj.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PYTHONUTF8: "1"
+      CRAWL_YEARS: ${{ inputs.years || '2021 2022 2023 2024 2025 2026' }}
+      CRAWL_MAX_PAGES: ${{ inputs.max_pages || '80' }}
+      CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '1000' }}
+      REPLACE_EXISTING: ${{ inputs.replace_existing || false }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "Missing SUPABASE_SERVICE_ROLE_KEY secret" && exit 1)
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,16 +60,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r crawler/requirements.txt
 
+      - name: Compile crawler and sync scripts
+        run: |
+          python -m py_compile \
+            crawler/hebei_gaokao_crawler.py \
+            crawler/build_hebei_database.py \
+            crawler/validate_hebei_database.py \
+            scripts/sync_sqlite_to_supabase.py
+
       - name: Crawl public pages and attachments
         run: |
-          YEARS="${{ github.event.inputs.years }}"
-          if [ -z "$YEARS" ]; then YEARS="2026"; fi
+          YEARS="${CRAWL_YEARS:-2021 2022 2023 2024 2025 2026}"
           python crawler/hebei_gaokao_crawler.py crawl \
             --out data_public \
             --years $YEARS \
-            --delay 1.5 \
-            --max-pages 20 \
-            --max-list-visits 200
+            --delay 1.0 \
+            --max-pages "${CRAWL_MAX_PAGES:-80}" \
+            --max-list-visits "${CRAWL_MAX_LIST_VISITS:-1000}"
 
       - name: Parse downloaded spreadsheets
         run: python crawler/hebei_gaokao_crawler.py parse-excel --out data_public
@@ -55,16 +84,31 @@ jobs:
       - name: Build normalized SQLite database
         run: python crawler/build_hebei_database.py --out data_public
 
+      - name: Validate normalized database
+        run: |
+          python crawler/validate_hebei_database.py \
+            --sqlite data_public/hebei_gaokao.sqlite \
+            --min-admission-lines 100 \
+            --min-score-ranks 100 \
+            --min-batch-lines 4
+
       - name: Sync to Supabase
-        run: python scripts/sync_sqlite_to_supabase.py --sqlite data_public/hebei_gaokao.sqlite
+        run: |
+          SYNC_ARGS=(--sqlite data_public/hebei_gaokao.sqlite)
+          if [ "$REPLACE_EXISTING" = "true" ]; then
+            SYNC_ARGS+=(--replace)
+          fi
+          python scripts/sync_sqlite_to_supabase.py "${SYNC_ARGS[@]}"
 
       - name: Upload crawl artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hebei-gaokao-crawl-${{ github.run_id }}
+          retention-days: 14
           path: |
             data_public/hebei_gaokao.sqlite
             data_public/crawler.log
             data_public/metadata/*.csv
+            data_public/metadata/crawl_manifest.json
           if-no-files-found: ignore

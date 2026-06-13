@@ -64,6 +64,7 @@ data/
 python hebei_gaokao_crawler.py crawl --out data_public --years 2023 2024 2025 2026 --delay 0.25 --max-pages 10 --max-list-visits 120
 python hebei_gaokao_crawler.py parse-excel --out data_public
 python build_hebei_database.py --out data_public
+python validate_hebei_database.py --sqlite data_public/hebei_gaokao.sqlite --min-admission-lines 100 --min-score-ranks 100 --min-batch-lines 4
 ```
 
 标准化表会写回：
@@ -99,6 +100,14 @@ python build_hebei_database.py --out data_full
 data_full/hebei_gaokao.sqlite
 ```
 
+抓取任务还会写入：
+
+```text
+data_full/metadata/crawl_manifest.json
+```
+
+该文件记录本次请求年份、发现年份、文章数、附件数、种子 URL 和抓取参数，便于排查 GitHub Actions 是否抓错年份或抓到空结果。
+
 全量库新增表：
 
 - `attachment_links`：从本地 HTML 恢复出的附件标题，用于判断附件所属批次、科目组合、艺术/体育/对口类别。
@@ -113,3 +122,9 @@ data_full/hebei_gaokao.sqlite
 3. 建立字段字典：年份、省份、批次、科目组合、院校代码、院校名称、专业组代码、专业名称、计划数、最低分、最低位次等；
 4. 用阳光高考招生章程和高校本科招生网补全专业限制、体检限制、单科要求、外语语种要求；
 5. 商用前务必确认数据来源授权和展示方式。
+
+## GitHub Actions 注意事项
+
+仓库工作流默认抓取 2021-2026 年，构建完成后会先运行 `validate_hebei_database.py`。核心表数量不达标时会停止同步，避免空库或半成品同步到 Supabase。
+
+如果需要全量重建 Supabase，可手动触发工作流并打开 `replace_existing`。不要在未确认本次 SQLite 校验通过前使用全量替换。

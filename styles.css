@@ -149,6 +149,11 @@ svg {
   border-bottom-color: var(--teal-2);
 }
 
+.main-nav a.is-active {
+  color: #fff;
+  border-bottom-color: var(--teal-2);
+}
+
 .header-actions,
 .hero-actions,
 .modal-actions {
@@ -531,6 +536,14 @@ svg {
   margin-left: auto;
   color: #1f62d0;
   white-space: nowrap;
+}
+
+.app-view {
+  display: none;
+}
+
+.app-view.is-active {
+  display: block;
 }
 
 main > section {
