@@ -51,7 +51,6 @@ jobs:
       SUPABASE_URL: https://tspotlvffujnlnmsglxj.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PYTHONUTF8: "1"
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CRAWL_YEARS: ${{ inputs.years || '2021 2022 2023 2024 2025 2026' }}
       CRAWL_MAX_PAGES: ${{ inputs.max_pages || '20' }}
       CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '250' }}
@@ -60,7 +59,7 @@ jobs:
       REPLACE_EXISTING: ${{ inputs.replace_existing || false }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Detect Supabase sync capability
         id: supabase-sync
@@ -81,7 +80,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -169,7 +168,7 @@ jobs:
 
       - name: Upload crawl artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hebei-gaokao-crawl-${{ github.run_id }}
           retention-days: 14
