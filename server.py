@@ -37,6 +37,7 @@ PUBLIC_TABLES = {
     "score_rank_table",
     "school_admission_summary",
 }
+HTTP = requests.Session()
 
 
 def load_dotenv(path: Path) -> None:
@@ -84,7 +85,7 @@ def supabase_get(table: str, params: dict[str, str], timeout: int = 20) -> list[
     if table not in PUBLIC_TABLES:
         raise ValueError(f"Unsupported public table: {table}")
     url, key = get_supabase_config()
-    response = requests.get(
+    response = HTTP.get(
         f"{url}/rest/v1/{table}",
         params=params,
         headers={
@@ -265,6 +266,8 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
             if is_statement_timeout(exc):
                 return []
             raise
+        except requests.RequestException:
+            return []
 
     for volunteer in volunteers[:96]:
         order_no = str(volunteer.get("orderNo") or "")
@@ -273,15 +276,17 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         if not order_no or not school:
             continue
 
-        rows = safe_admission_get(admission_params(school, major))
+        rows = safe_admission_get(
+            admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=True, limit=18)
+        )
         if not rows and major:
-            rows = safe_admission_get(admission_params(school, major, include_major=False))
-        if not rows:
-            rows = safe_admission_get(admission_params(school, major, exact_batch=False, limit=10))
+            rows = safe_admission_get(admission_params(school, major, fuzzy_school=True, include_major=False, limit=12))
         if not rows:
             rows = safe_admission_get(
-                admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=True, limit=8)
+                admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=False, limit=10)
             )
+        if not rows:
+            rows = safe_admission_get(admission_params(school, major, include_major=bool(major), exact_batch=True, limit=8))
         admission_matches[order_no] = enrich_rank_from_score(rows)
 
     return {

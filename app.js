@@ -484,7 +484,7 @@ function renderReportError(message) {
   createIcons();
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 22000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
