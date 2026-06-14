@@ -129,4 +129,6 @@ data_full/metadata/crawl_manifest.json
 
 如果仓库没有配置 `SUPABASE_SERVICE_ROLE_KEY`，工作流不会在密钥检查阶段失败；它会继续生成 SQLite 和 artifact，仅跳过 Supabase 同步。线上网站要读取最新数据时，仍需在 GitHub Actions secrets 中补齐该 key。
 
+定时任务默认 `max_pages=20`、`max_list_visits=250`，并使用较短网络超时和较少重试，避免河北考试院站点临时断连时把整轮任务拖到超时。全量补库时可手动触发并调高这两个参数。
+
 如果需要全量重建 Supabase，可手动触发工作流并打开 `replace_existing`。不要在未确认本次 SQLite 校验通过前使用全量替换。

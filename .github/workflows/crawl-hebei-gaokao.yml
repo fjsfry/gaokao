@@ -20,11 +20,11 @@ on:
       max_pages:
         description: "Max listing pages per seed channel"
         required: false
-        default: "80"
+        default: "20"
       max_list_visits:
         description: "Max discovered list pages to visit"
         required: false
-        default: "1000"
+        default: "250"
       replace_existing:
         description: "Clear Supabase tables before import. Use only for intentional full rebuilds."
         required: false
@@ -45,8 +45,8 @@ jobs:
       PYTHONUTF8: "1"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CRAWL_YEARS: ${{ inputs.years || '2021 2022 2023 2024 2025 2026' }}
-      CRAWL_MAX_PAGES: ${{ inputs.max_pages || '80' }}
-      CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '1000' }}
+      CRAWL_MAX_PAGES: ${{ inputs.max_pages || '20' }}
+      CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '250' }}
       REPLACE_EXISTING: ${{ inputs.replace_existing || false }}
     steps:
       - name: Checkout
@@ -97,8 +97,10 @@ jobs:
             --out data_public \
             --years $YEARS \
             --delay 1.0 \
-            --max-pages "${CRAWL_MAX_PAGES:-80}" \
-            --max-list-visits "${CRAWL_MAX_LIST_VISITS:-1000}"
+            --max-pages "${CRAWL_MAX_PAGES:-20}" \
+            --max-list-visits "${CRAWL_MAX_LIST_VISITS:-250}" \
+            --request-timeout 16 \
+            --retries 1
 
       - name: Parse downloaded spreadsheets
         run: python crawler/hebei_gaokao_crawler.py parse-excel --out data_public
@@ -107,6 +109,8 @@ jobs:
         run: python crawler/build_hebei_database.py --out data_public
 
       - name: Validate normalized database
+        id: validate-db
+        continue-on-error: true
         run: |
           python crawler/validate_hebei_database.py \
             --sqlite data_public/hebei_gaokao.sqlite \
@@ -115,7 +119,7 @@ jobs:
             --min-batch-lines 4
 
       - name: Sync to Supabase
-        if: steps.supabase-sync.outputs.can_sync == 'true'
+        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outcome == 'success'
         run: |
           SYNC_ARGS=(--sqlite data_public/hebei_gaokao.sqlite)
           if [ "$REPLACE_EXISTING" = "true" ]; then
@@ -127,6 +131,15 @@ jobs:
         if: steps.supabase-sync.outputs.can_sync != 'true'
         run: |
           echo "Skipped Supabase sync because SUPABASE_SERVICE_ROLE_KEY is not configured." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report skipped Supabase sync after validation failure
+        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outcome != 'success'
+        run: |
+          {
+            echo "Skipped Supabase sync because the normalized SQLite validation did not pass."
+            echo ""
+            echo "The crawl artifact was still uploaded for inspection. Check data_public/metadata/crawl_manifest.json and data_public/crawler.log in the artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload crawl artifact
         if: always()

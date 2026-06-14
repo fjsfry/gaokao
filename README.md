@@ -52,9 +52,11 @@ python server.py
 手动运行时可调整：
 
 - `years`: 抓取年份。
-- `max_pages`: 每个频道翻页上限。
-- `max_list_visits`: 列表页访问上限。
+- `max_pages`: 每个频道翻页上限，定时任务默认 `20`。
+- `max_list_visits`: 列表页访问上限，定时任务默认 `250`。
 - `replace_existing`: 是否清空 Supabase 表后全量导入，仅用于确认过的全量重建。
+
+定时任务采用轻量抓取，减少河北考试院站点对 GitHub runner 断连导致的失败。需要重建历史全量库时，可手动触发并调高 `max_pages` 与 `max_list_visits`。
 
 同步前会运行：
 

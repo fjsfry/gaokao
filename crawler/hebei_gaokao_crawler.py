@@ -122,14 +122,14 @@ def setup_logger(out_dir: Path) -> None:
     )
 
 
-def make_session() -> requests.Session:
+def make_session(retries: int = 2) -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
     retry = Retry(
-        total=3,
-        connect=3,
-        read=3,
-        backoff_factor=1.2,
+        total=retries,
+        connect=retries,
+        read=retries,
+        backoff_factor=0.9,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["HEAD", "GET"],
     )
@@ -468,15 +468,14 @@ def crawl(args: argparse.Namespace) -> None:
 
     years = set(args.years or [])
     keywords = args.keywords or DEFAULT_KEYWORDS
-    session = make_session()
+    session = make_session(retries=args.retries)
 
-    # 初始队列：频道页 + 频道翻页。河北考试院往年数据当前约 4 页，留到 20 页避免后续扩容。
+    # 初始队列按页码交错排列，避免某个频道连续断连时阻塞其他可访问频道。
     queue: list[str] = []
     for seed in SEED_URLS:
         queue.append(seed)
-        base = seed.rstrip("/")
-        # /ptgk/wnsj/index_2.html 这种翻页形式
-        for i in range(2, args.max_pages + 1):
+    for i in range(2, args.max_pages + 1):
+        for seed in SEED_URLS:
             if seed.endswith("/"):
                 queue.append(f"{seed}index_{i}.html")
             elif seed.endswith("index.html"):
@@ -492,7 +491,7 @@ def crawl(args: argparse.Namespace) -> None:
         if url in seen:
             continue
         seen.add(url)
-        resp = fetch(session, url)
+        resp = fetch(session, url, timeout=args.request_timeout)
         time.sleep(args.delay)
         if resp is None:
             continue
@@ -510,7 +509,7 @@ def crawl(args: argparse.Namespace) -> None:
     file_records: list[FileRecord] = []
 
     for url, list_title in tqdm(article_urls.items(), desc="抓取文章"):
-        resp = fetch(session, url)
+        resp = fetch(session, url, timeout=args.request_timeout)
         time.sleep(args.delay)
         if resp is None:
             continue
@@ -660,6 +659,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p1.add_argument("--delay", type=float, default=1.2, help="请求间隔秒数，默认 1.2")
     p1.add_argument("--max-pages", type=int, default=20, help="每个频道尝试翻页数，默认 20")
     p1.add_argument("--max-list-visits", type=int, default=200, help="最多访问频道/列表页数量，默认 200")
+    p1.add_argument("--request-timeout", type=int, default=18, help="列表页和文章页请求超时秒数，默认 18")
+    p1.add_argument("--retries", type=int, default=2, help="网络失败重试次数，默认 2")
     p1.set_defaults(func=crawl)
 
     p2 = sub.add_parser("parse-excel", help="将下载的 Excel 附件解析为 CSV")
