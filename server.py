@@ -511,8 +511,14 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 
+load_dotenv(ROOT / ".env")
+
+
+class handler(AppHandler):
+    pass
+
+
 def main() -> None:
-    load_dotenv(ROOT / ".env")
     port = int(os.environ.get("PORT", "4174"))
     host = os.environ.get("HOST", "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), AppHandler)
