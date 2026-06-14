@@ -4,6 +4,13 @@ run-name: Crawl Hebei Gaokao data (${{ inputs.years || '2021-2026' }})
 on:
   schedule:
     - cron: "0 0,10,20 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/crawl-hebei-gaokao.yml"
+      - "crawler/**"
+      - "scripts/sync_sqlite_to_supabase.py"
   workflow_dispatch:
     inputs:
       years:
@@ -36,6 +43,7 @@ jobs:
       SUPABASE_URL: https://tspotlvffujnlnmsglxj.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PYTHONUTF8: "1"
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CRAWL_YEARS: ${{ inputs.years || '2021 2022 2023 2024 2025 2026' }}
       CRAWL_MAX_PAGES: ${{ inputs.max_pages || '80' }}
       CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '1000' }}
@@ -44,9 +52,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required secrets
+      - name: Detect Supabase sync capability
+        id: supabase-sync
         run: |
-          test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "Missing SUPABASE_SERVICE_ROLE_KEY secret" && exit 1)
+          if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "CAN_SYNC_SUPABASE=true" >> "$GITHUB_ENV"
+            echo "can_sync=true" >> "$GITHUB_OUTPUT"
+            echo "Supabase service role key is configured; sync step will run." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "CAN_SYNC_SUPABASE=false" >> "$GITHUB_ENV"
+            echo "can_sync=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "Supabase service role key is not configured."
+              echo ""
+              echo "Crawler, parser, SQLite build, validation, and artifact upload will still run."
+              echo "The Supabase sync step will be skipped until SUPABASE_SERVICE_ROLE_KEY is added in repository Actions secrets."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -93,12 +115,18 @@ jobs:
             --min-batch-lines 4
 
       - name: Sync to Supabase
+        if: steps.supabase-sync.outputs.can_sync == 'true'
         run: |
           SYNC_ARGS=(--sqlite data_public/hebei_gaokao.sqlite)
           if [ "$REPLACE_EXISTING" = "true" ]; then
             SYNC_ARGS+=(--replace)
           fi
           python scripts/sync_sqlite_to_supabase.py "${SYNC_ARGS[@]}"
+
+      - name: Report skipped Supabase sync
+        if: steps.supabase-sync.outputs.can_sync != 'true'
+        run: |
+          echo "Skipped Supabase sync because SUPABASE_SERVICE_ROLE_KEY is not configured." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload crawl artifact
         if: always()

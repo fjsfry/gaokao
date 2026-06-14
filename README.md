@@ -41,6 +41,8 @@ python server.py
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+如果暂时没有配置该 secret，GitHub Actions 仍会执行爬虫、解析、SQLite 构建、校验和 artifact 上传；只有 Supabase 同步会被跳过。要让网站读取到最新线上数据，仍需补齐该 secret。
+
 默认定时任务每 8 小时运行一次，覆盖年份为：
 
 ```text
