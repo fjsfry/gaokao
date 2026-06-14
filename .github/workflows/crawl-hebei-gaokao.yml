@@ -122,16 +122,30 @@ jobs:
 
       - name: Validate normalized database
         id: validate-db
-        continue-on-error: true
         run: |
+          set +e
           python crawler/validate_hebei_database.py \
             --sqlite data_public/hebei_gaokao.sqlite \
             --min-admission-lines 100 \
             --min-score-ranks 100 \
             --min-batch-lines 4
+          validation_status=$?
+          set -e
+
+          if [ "$validation_status" -eq 0 ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            echo "SQLite validation passed; Supabase sync is allowed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "SQLite validation did not pass (exit code ${validation_status})."
+              echo ""
+              echo "Supabase sync will be skipped so an empty or incomplete crawl cannot overwrite production data."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Sync to Supabase
-        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outcome == 'success'
+        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outputs.valid == 'true'
         run: |
           SYNC_ARGS=(--sqlite data_public/hebei_gaokao.sqlite)
           if [ "$REPLACE_EXISTING" = "true" ]; then
@@ -145,7 +159,7 @@ jobs:
           echo "Skipped Supabase sync because SUPABASE_SERVICE_ROLE_KEY is not configured." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report skipped Supabase sync after validation failure
-        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outcome != 'success'
+        if: steps.supabase-sync.outputs.can_sync == 'true' && steps.validate-db.outputs.valid != 'true'
         run: |
           {
             echo "Skipped Supabase sync because the normalized SQLite validation did not pass."
