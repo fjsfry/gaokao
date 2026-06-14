@@ -25,6 +25,14 @@ on:
         description: "Max discovered list pages to visit"
         required: false
         default: "250"
+      max_list_failures:
+        description: "Stop discovery after this many failed listing requests. Use 0 to disable."
+        required: false
+        default: "12"
+      max_consecutive_list_failures:
+        description: "Stop discovery after this many consecutive failed listing requests. Use 0 to disable."
+        required: false
+        default: "6"
       replace_existing:
         description: "Clear Supabase tables before import. Use only for intentional full rebuilds."
         required: false
@@ -33,7 +41,7 @@ on:
 
 concurrency:
   group: hebei-gaokao-crawler
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   crawl-and-sync:
@@ -47,6 +55,8 @@ jobs:
       CRAWL_YEARS: ${{ inputs.years || '2021 2022 2023 2024 2025 2026' }}
       CRAWL_MAX_PAGES: ${{ inputs.max_pages || '20' }}
       CRAWL_MAX_LIST_VISITS: ${{ inputs.max_list_visits || '250' }}
+      CRAWL_MAX_LIST_FAILURES: ${{ inputs.max_list_failures || '12' }}
+      CRAWL_MAX_CONSECUTIVE_LIST_FAILURES: ${{ inputs.max_consecutive_list_failures || '6' }}
       REPLACE_EXISTING: ${{ inputs.replace_existing || false }}
     steps:
       - name: Checkout
@@ -99,8 +109,10 @@ jobs:
             --delay 1.0 \
             --max-pages "${CRAWL_MAX_PAGES:-20}" \
             --max-list-visits "${CRAWL_MAX_LIST_VISITS:-250}" \
-            --request-timeout 16 \
-            --retries 1
+            --request-timeout 12 \
+            --retries 0 \
+            --max-list-failures "${CRAWL_MAX_LIST_FAILURES:-12}" \
+            --max-consecutive-list-failures "${CRAWL_MAX_CONSECUTIVE_LIST_FAILURES:-6}"
 
       - name: Parse downloaded spreadsheets
         run: python crawler/hebei_gaokao_crawler.py parse-excel --out data_public

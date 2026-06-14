@@ -88,7 +88,7 @@ data_public/hebei_gaokao.sqlite
 当前项目的全量构建目录使用 `data_full`，覆盖 2021-2026 年河北省教育考试院公开页面。2026 年截至 2026-06-08 还没有普通高考投档线，当前可用于志愿推荐的完整业务数据主要覆盖 2021-2025 年。
 
 ```bash
-python hebei_gaokao_crawler.py crawl --out data_full --years 2021 2022 2023 2024 2025 2026 --delay 0.2 --max-pages 80 --max-list-visits 1000
+python hebei_gaokao_crawler.py crawl --out data_full --years 2021 2022 2023 2024 2025 2026 --delay 0.2 --max-pages 80 --max-list-visits 1000 --max-list-failures 80 --max-consecutive-list-failures 20
 python hebei_gaokao_crawler.py crawl --out data_full --years 2021 2022 2023 2024 2025 2026 --keywords 录取控制分数线 控制分数线 --delay 0.2 --max-pages 8 --max-list-visits 100
 python hebei_gaokao_crawler.py parse-excel --out data_full
 python build_hebei_database.py --out data_full
@@ -106,7 +106,7 @@ data_full/hebei_gaokao.sqlite
 data_full/metadata/crawl_manifest.json
 ```
 
-该文件记录本次请求年份、发现年份、文章数、附件数、种子 URL 和抓取参数，便于排查 GitHub Actions 是否抓错年份或抓到空结果。
+该文件记录本次请求年份、发现年份、文章数、附件数、种子 URL、抓取参数和列表页失败统计，便于排查 GitHub Actions 是否抓错年份、抓到空结果或被源站断连。
 
 全量库新增表：
 
@@ -129,6 +129,6 @@ data_full/metadata/crawl_manifest.json
 
 如果仓库没有配置 `SUPABASE_SERVICE_ROLE_KEY`，工作流不会在密钥检查阶段失败；它会继续生成 SQLite 和 artifact，仅跳过 Supabase 同步。线上网站要读取最新数据时，仍需在 GitHub Actions secrets 中补齐该 key。
 
-定时任务默认 `max_pages=20`、`max_list_visits=250`，并使用较短网络超时和较少重试，避免河北考试院站点临时断连时把整轮任务拖到超时。全量补库时可手动触发并调高这两个参数。
+定时任务默认 `max_pages=20`、`max_list_visits=250`、`max_list_failures=12`、`max_consecutive_list_failures=6`，并使用较短网络超时、零额外重试和源站不可用熔断，避免河北考试院站点临时断连时把整轮任务拖到超时。全量补库时可手动触发并调高这些参数。
 
 如果需要全量重建 Supabase，可手动触发工作流并打开 `replace_existing`。不要在未确认本次 SQLite 校验通过前使用全量替换。

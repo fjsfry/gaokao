@@ -54,9 +54,11 @@ python server.py
 - `years`: 抓取年份。
 - `max_pages`: 每个频道翻页上限，定时任务默认 `20`。
 - `max_list_visits`: 列表页访问上限，定时任务默认 `250`。
+- `max_list_failures`: 列表页累计失败熔断次数，默认 `12`。
+- `max_consecutive_list_failures`: 列表页连续失败熔断次数，默认 `6`。
 - `replace_existing`: 是否清空 Supabase 表后全量导入，仅用于确认过的全量重建。
 
-定时任务采用轻量抓取，减少河北考试院站点对 GitHub runner 断连导致的失败。需要重建历史全量库时，可手动触发并调高 `max_pages` 与 `max_list_visits`。
+定时任务采用轻量抓取和源站不可用熔断，减少河北考试院站点对 GitHub runner 断连导致的失败。需要重建历史全量库时，可手动触发并调高 `max_pages`、`max_list_visits` 和失败熔断阈值。
 
 同步前会运行：
 
@@ -71,7 +73,7 @@ python crawler/validate_hebei_database.py --sqlite data_public/hebei_gaokao.sqli
 
 ```bash
 pip install -r crawler/requirements.txt
-python crawler/hebei_gaokao_crawler.py crawl --out data_public --years 2021 2022 2023 2024 2025 2026 --delay 1.0 --max-pages 80 --max-list-visits 1000
+python crawler/hebei_gaokao_crawler.py crawl --out data_public --years 2021 2022 2023 2024 2025 2026 --delay 1.0 --max-pages 80 --max-list-visits 1000 --max-list-failures 80 --max-consecutive-list-failures 20
 python crawler/hebei_gaokao_crawler.py parse-excel --out data_public
 python crawler/build_hebei_database.py --out data_public
 python crawler/validate_hebei_database.py --sqlite data_public/hebei_gaokao.sqlite --min-admission-lines 100 --min-score-ranks 100 --min-batch-lines 4

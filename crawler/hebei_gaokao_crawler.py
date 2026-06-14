@@ -361,7 +361,13 @@ def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
             writer.writerow(row)
 
 
-def write_manifest(out_dir: Path, args: argparse.Namespace, articles: list[ArticleRecord], files: list[FileRecord]) -> None:
+def write_manifest(
+    out_dir: Path,
+    args: argparse.Namespace,
+    articles: list[ArticleRecord],
+    files: list[FileRecord],
+    stats: Optional[dict[str, object]] = None,
+) -> None:
     years = sorted({year for year in (year_from_text_or_url(item.title, item.url) for item in articles) if year})
     payload = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -375,6 +381,11 @@ def write_manifest(out_dir: Path, args: argparse.Namespace, articles: list[Artic
         "delay_seconds": args.delay,
         "max_pages": args.max_pages,
         "max_list_visits": args.max_list_visits,
+        "request_timeout": args.request_timeout,
+        "retries": args.retries,
+        "max_list_failures": args.max_list_failures,
+        "max_consecutive_list_failures": args.max_consecutive_list_failures,
+        "crawl_stats": stats or {},
     }
     manifest_path = out_dir / "metadata" / "crawl_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -483,18 +494,51 @@ def crawl(args: argparse.Namespace) -> None:
 
     seen: set[str] = set()
     article_urls: dict[str, str] = {}
+    list_stats: dict[str, object] = {
+        "list_pages_attempted": 0,
+        "list_pages_successful": 0,
+        "list_pages_failed": 0,
+        "consecutive_list_failures": 0,
+        "circuit_breaker": "",
+    }
 
     logging.info("开始发现文章链接。候选页面数：%s", len(queue))
     while queue:
+        if args.max_list_visits and len(seen) >= args.max_list_visits:
+            list_stats["circuit_breaker"] = "max_list_visits"
+            logging.warning("达到列表页访问上限，停止发现：%s", args.max_list_visits)
+            break
         url = queue.pop(0)
         url = normalize_url(url)
         if url in seen:
             continue
         seen.add(url)
+        list_stats["list_pages_attempted"] = int(list_stats["list_pages_attempted"]) + 1
         resp = fetch(session, url, timeout=args.request_timeout)
         time.sleep(args.delay)
         if resp is None:
+            list_stats["list_pages_failed"] = int(list_stats["list_pages_failed"]) + 1
+            list_stats["consecutive_list_failures"] = int(list_stats["consecutive_list_failures"]) + 1
+            if (
+                args.max_consecutive_list_failures
+                and int(list_stats["consecutive_list_failures"]) >= args.max_consecutive_list_failures
+            ):
+                list_stats["circuit_breaker"] = "max_consecutive_list_failures"
+                logging.warning(
+                    "连续列表页请求失败 %s 次，疑似源站对当前环境不可用，提前停止发现。",
+                    args.max_consecutive_list_failures,
+                )
+                break
+            if args.max_list_failures and int(list_stats["list_pages_failed"]) >= args.max_list_failures:
+                list_stats["circuit_breaker"] = "max_list_failures"
+                logging.warning(
+                    "列表页请求失败累计达到 %s 次，提前停止发现。",
+                    args.max_list_failures,
+                )
+                break
             continue
+        list_stats["list_pages_successful"] = int(list_stats["list_pages_successful"]) + 1
+        list_stats["consecutive_list_failures"] = 0
         links = extract_links(resp.url, resp.text)
         for text, link in links:
             if is_article_url(link) and keep_by_year_and_keyword(text, link, years, keywords):
@@ -545,7 +589,7 @@ def crawl(args: argparse.Namespace) -> None:
 
     write_csv(meta_dir / "articles.csv", [asdict(x) for x in article_records], list(ArticleRecord.__dataclass_fields__.keys()))
     write_csv(meta_dir / "files.csv", [asdict(x) for x in file_records], list(FileRecord.__dataclass_fields__.keys()))
-    write_manifest(out, args, article_records, file_records)
+    write_manifest(out, args, article_records, file_records, list_stats)
     logging.info("完成。文章：%s，附件：%s，数据库：%s", len(article_records), len(file_records), db_path)
 
 
@@ -661,6 +705,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p1.add_argument("--max-list-visits", type=int, default=200, help="最多访问频道/列表页数量，默认 200")
     p1.add_argument("--request-timeout", type=int, default=18, help="列表页和文章页请求超时秒数，默认 18")
     p1.add_argument("--retries", type=int, default=2, help="网络失败重试次数，默认 2")
+    p1.add_argument(
+        "--max-list-failures",
+        type=int,
+        default=24,
+        help="列表页累计失败熔断次数；0 表示不熔断，默认 24",
+    )
+    p1.add_argument(
+        "--max-consecutive-list-failures",
+        type=int,
+        default=8,
+        help="列表页连续失败熔断次数；0 表示不熔断，默认 8",
+    )
     p1.set_defaults(func=crawl)
 
     p2 = sub.add_parser("parse-excel", help="将下载的 Excel 附件解析为 CSV")
