@@ -10,7 +10,7 @@
     />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260613-commercial" />
+    <link rel="stylesheet" href="./styles.css?v=20260616-depth" />
   </head>
   <body>
     <header class="site-header">
@@ -137,6 +137,59 @@
         </div>
       </section>
 
+      <section class="home-proof-section app-view" data-view="home" aria-labelledby="home-proof-title">
+        <div class="section-heading compact-heading">
+          <h2 id="home-proof-title">不是简单打分，而是一套提交前复核工作台</h2>
+          <p>围绕河北新高考志愿表，把家长最关心的“能不能录、值不值得冲、有没有退档隐患、如何调整顺序”拆成可复核的证据链。</p>
+        </div>
+        <div class="proof-grid">
+          <article>
+            <strong>01</strong>
+            <h3>先看位次证据</h3>
+            <p>匹配近年公开投档记录、一分一档和批次线，优先用真实位次判断风险，不只看分数。</p>
+          </article>
+          <article>
+            <strong>02</strong>
+            <h3>再查规则限制</h3>
+            <p>检查选科、语种、单科、体检、学费和专业倾向，识别“分数够但条件不合适”的隐性风险。</p>
+          </article>
+          <article>
+            <strong>03</strong>
+            <h3>最后调整结构</h3>
+            <p>把96个志愿按冲、稳、保、兜底重新审视，给出保留、下调、替换、人工复核等动作建议。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="home-snapshot-section app-view" data-view="home" aria-labelledby="home-snapshot-title">
+        <div class="snapshot-copy">
+          <h2 id="home-snapshot-title">家长真正需要的是一份能讨论、能复核、能落地的报告</h2>
+          <p>系统先给出自动化预览，再把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
+          <div class="snapshot-actions">
+            <a class="solid-button" href="#/checkup">立即生成风险预览</a>
+            <a class="outline-button" href="#/sources">查看数据来源</a>
+          </div>
+        </div>
+        <div class="snapshot-panel" aria-label="报告交付内容">
+          <div class="snapshot-row">
+            <span>整表结构</span>
+            <strong>冲稳保比例、断档、保底有效性</strong>
+          </div>
+          <div class="snapshot-row">
+            <span>逐条判断</span>
+            <strong>最低位次、历史波动、风险等级</strong>
+          </div>
+          <div class="snapshot-row">
+            <span>个性化限制</span>
+            <strong>选科、体检、语种、费用、专业偏好</strong>
+          </div>
+          <div class="snapshot-row">
+            <span>调整建议</span>
+            <strong>删除、替换、下调、保留、人工复核</strong>
+          </div>
+        </div>
+      </section>
+
       <section class="reason-section app-view" data-view="features" id="features" aria-labelledby="features-title">
         <div class="section-heading compact-heading">
           <h2 id="features-title">为什么越来越多家长选择做风险评估？</h2>
@@ -194,6 +247,74 @@
             <p>可查看、下载或分享，支持后续顾问复核。</p>
             <div class="step-visual report-card-mini" aria-hidden="true"></div>
           </article>
+        </div>
+      </section>
+
+      <section class="capability-section app-view" data-view="features" aria-labelledby="capability-title">
+        <div class="section-heading compact-heading">
+          <h2 id="capability-title">成熟志愿产品该有的能力，我们拆成可执行模块</h2>
+          <p>参考头部志愿工具常见的冲稳保推荐、录取概率、个性化偏好、AI咨询和报告生成能力，本站更强调河北本地数据、逐条证据和提交前风险复核。</p>
+        </div>
+        <div class="capability-layout">
+          <div class="capability-list" aria-label="产品能力清单">
+            <article>
+              <i data-lucide="target" aria-hidden="true"></i>
+              <div>
+                <h3>冲稳保结构评估</h3>
+                <p>统计冲刺、边缘稳、稳妥、保底比例，提示冲刺过多、保底不足、梯度过密等结构问题。</p>
+              </div>
+            </article>
+            <article>
+              <i data-lucide="percent" aria-hidden="true"></i>
+              <div>
+                <h3>录取风险分层</h3>
+                <p>用位次差、历史波动和专业热度给每条志愿分层，避免把所有志愿都当成“差不多”。</p>
+              </div>
+            </article>
+            <article>
+              <i data-lucide="sliders-horizontal" aria-hidden="true"></i>
+              <div>
+                <h3>个性化偏好约束</h3>
+                <p>支持地域、专业、费用、体检、外语和单科条件，帮助识别与家庭真实需求冲突的志愿。</p>
+              </div>
+            </article>
+            <article>
+              <i data-lucide="bot" aria-hidden="true"></i>
+              <div>
+                <h3>DeepSeek 报告生成</h3>
+                <p>在系统诊断结果之上生成家庭可读的完整说明，保留证据与风险边界，便于沟通决策。</p>
+              </div>
+            </article>
+          </div>
+          <aside class="capability-board" aria-label="风险工作台示意">
+            <div class="board-head">
+              <span>志愿结构看板</span>
+              <strong>96条</strong>
+            </div>
+            <div class="board-bars" aria-hidden="true">
+              <span style="--w: 28%; --c: #ef4444"></span>
+              <span style="--w: 34%; --c: #f59e0b"></span>
+              <span style="--w: 24%; --c: #0fb8a9"></span>
+              <span style="--w: 14%; --c: #17a56b"></span>
+            </div>
+            <ul>
+              <li><span class="dot high-dot"></span>前30个志愿冲刺密度偏高</li>
+              <li><span class="dot amber-dot"></span>第41-56志愿存在梯度重叠</li>
+              <li><span class="dot green-dot"></span>保底区需要补充省内稳定院校</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <section class="decision-section app-view" data-view="features" aria-labelledby="decision-title">
+        <div class="section-heading compact-heading">
+          <h2 id="decision-title">围绕真实家庭决策场景设计</h2>
+        </div>
+        <div class="decision-grid">
+          <article><span>填报前</span><h3>快速体检草稿表</h3><p>先把已有志愿表跑一遍，找出高风险、无效保底、专业限制和顺序问题。</p></article>
+          <article><span>家庭讨论</span><h3>用证据统一判断</h3><p>把“想冲名校”和“想保专业”的冲突落到位次、计划和专业要求上讨论。</p></article>
+          <article><span>顾问复核</span><h3>提高咨询效率</h3><p>报告摘要能直接发给顾问，优先处理最影响录取结果的志愿。</p></article>
+          <article><span>提交前</span><h3>做最终风险确认</h3><p>检查排序、兜底、调剂接受度和限制条件，减少最后一刻返工。</p></article>
         </div>
       </section>
 
@@ -319,6 +440,34 @@
         </div>
       </section>
 
+      <section class="checkup-support-section app-view" data-view="checkup" aria-labelledby="checkup-support-title">
+        <div class="section-heading compact-heading">
+          <h2 id="checkup-support-title">提交前请把这些信息补全，报告会更接近真实决策</h2>
+        </div>
+        <div class="support-grid">
+          <article>
+            <i data-lucide="map-pin" aria-hidden="true"></i>
+            <h3>地域与通勤偏好</h3>
+            <p>是否接受省外、城市层级、离家距离，会直接影响稳妥志愿和保底志愿的选择。</p>
+          </article>
+          <article>
+            <i data-lucide="graduation-cap" aria-hidden="true"></i>
+            <h3>专业接受边界</h3>
+            <p>想学什么、坚决不接受什么、能否转专业，需要在填报前明确。</p>
+          </article>
+          <article>
+            <i data-lucide="wallet" aria-hidden="true"></i>
+            <h3>费用与培养模式</h3>
+            <p>中外合作、高收费、校企合作、住宿和城市生活成本都应纳入复核。</p>
+          </article>
+          <article>
+            <i data-lucide="stethoscope" aria-hidden="true"></i>
+            <h3>体检与单科限制</h3>
+            <p>医学、化工、交通、外语等专业常见限制，需要逐条核验招生章程。</p>
+          </article>
+        </div>
+      </section>
+
       <section class="dimensions-section app-view" data-view="dimensions" id="dimensions" aria-labelledby="dimensions-title">
         <div class="section-heading compact-heading">
           <h2 id="dimensions-title">核心诊断维度，全方位识别风险</h2>
@@ -328,6 +477,63 @@
           <article><i data-lucide="line-chart" aria-hidden="true"></i><h3>历年录取位次分析</h3><p>查看近3-5年位次数据，分析录取概率与趋势变化。</p></article>
           <article><i data-lucide="shield-check" aria-hidden="true"></i><h3>选科与专业限制检查</h3><p>自动检查选科、身体、语种、单科等限制条件。</p></article>
           <article><i data-lucide="route" aria-hidden="true"></i><h3>志愿梯度强度检查</h3><p>识别顺序断档、梯度过密、保底失效，给出优化调整建议。</p></article>
+        </div>
+      </section>
+
+      <section class="model-depth-section app-view" data-view="dimensions" aria-labelledby="model-depth-title">
+        <div class="section-heading compact-heading">
+          <h2 id="model-depth-title">风险模型不是黑箱，核心判断会落到可解释字段</h2>
+        </div>
+        <div class="model-table-card">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>判断模块</th>
+                  <th>主要输入</th>
+                  <th>输出结果</th>
+                  <th>常见风险信号</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>位次安全边际</td>
+                  <td>考生位次、近年最低位次、批次线</td>
+                  <td>极冲 / 冲 / 稳 / 保</td>
+                  <td>连续三年最低位次明显高于考生位次</td>
+                </tr>
+                <tr>
+                  <td>波动与热度</td>
+                  <td>专业热度、历史分差、招生计划变化</td>
+                  <td>波动提醒与复核等级</td>
+                  <td>热门专业、计划缩减、分数线突然上移</td>
+                </tr>
+                <tr>
+                  <td>专业约束</td>
+                  <td>选科、体检、语种、单科、费用</td>
+                  <td>限制提示与删除建议</td>
+                  <td>不满足选科、体检限制或家庭明确不能接受</td>
+                </tr>
+                <tr>
+                  <td>整表结构</td>
+                  <td>96个志愿顺序、梯度、风险分布</td>
+                  <td>整体结构诊断</td>
+                  <td>冲刺集中、稳妥断层、保底不足、兜底失效</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="model-scenarios-section app-view" data-view="dimensions" aria-labelledby="scenario-title">
+        <div class="section-heading compact-heading">
+          <h2 id="scenario-title">模型会优先提示这些容易被忽略的问题</h2>
+        </div>
+        <div class="scenario-grid">
+          <article><h3>看起来稳，其实专业过热</h3><p>院校整体位次可接受，但目标专业连续上移，系统会把专业风险单独列出。</p></article>
+          <article><h3>学校能上，专业不能接受</h3><p>调剂范围与家庭偏好冲突时，报告会提示“录取可能性”和“满意度风险”并存。</p></article>
+          <article><h3>前面冲太多，后面保不住</h3><p>整表梯度过陡时，系统会提示补足中段稳妥承接和后段有效保底。</p></article>
         </div>
       </section>
 
@@ -413,6 +619,32 @@
         </div>
       </section>
 
+      <section class="report-structure-section app-view" data-view="sample" aria-labelledby="report-structure-title">
+        <div class="section-heading compact-heading">
+          <h2 id="report-structure-title">完整报告不是一张表，而是一份决策材料</h2>
+        </div>
+        <div class="report-section-grid">
+          <article><span>01</span><h3>考生画像</h3><p>分数、位次、选科、限制、偏好、预算和填报批次。</p></article>
+          <article><span>02</span><h3>整表总览</h3><p>冲稳保比例、风险分布、保底有效性和优先处理项。</p></article>
+          <article><span>03</span><h3>逐条明细</h3><p>每个志愿的历史位次、风险等级、证据摘要和调整动作。</p></article>
+          <article><span>04</span><h3>优化建议</h3><p>替换方向、顺序调整、人工复核点和顾问沟通摘要。</p></article>
+        </div>
+      </section>
+
+      <section class="sample-insight-section app-view" data-view="sample" aria-labelledby="sample-insight-title">
+        <div class="insight-panel">
+          <div>
+            <h2 id="sample-insight-title">样例解读：为什么同一所学校也要看专业？</h2>
+            <p>很多家庭只看院校最低投档线，但同一院校内专业冷热差异明显。报告会把院校、专业、位次、限制条件放到同一张明细里，避免“学校能进但专业风险过高”的误判。</p>
+          </div>
+          <ul>
+            <li>先判断院校层面是否可冲、可稳、可保。</li>
+            <li>再看目标专业是否明显高于院校整体水平。</li>
+            <li>最后结合调剂接受度决定是否保留或下调。</li>
+          </ul>
+        </div>
+      </section>
+
       <section class="data-band app-view" data-view="sources" id="sources" aria-labelledby="sources-title">
         <div class="section-heading compact-heading invert">
           <h2 id="sources-title">权威数据，多重来源，结论可追溯</h2>
@@ -424,6 +656,47 @@
           <article><i data-lucide="badge-check" aria-hidden="true"></i><h3>结论可追溯</h3><p>每条判断均有数据依据与风险字段，支持导出复核。</p></article>
         </div>
         <p class="source-note">数据更新至公开可用年份，系统结论仅供志愿提交前风险复核参考。</p>
+      </section>
+
+      <section class="data-coverage-section app-view" data-view="sources" aria-labelledby="data-coverage-title">
+        <div class="section-heading compact-heading">
+          <h2 id="data-coverage-title">数据中心重点解决三件事：覆盖、追溯、校验</h2>
+        </div>
+        <div class="coverage-grid">
+          <article>
+            <strong>2021-2025</strong>
+            <span>已接入公开年份</span>
+            <p>覆盖近年河北普通批次公开投档记录、一分一档和批次线。</p>
+          </article>
+          <article>
+            <strong>20万+</strong>
+            <span>历史投档记录</span>
+            <p>按年份、科目组合、批次、学校和专业进行匹配与复核。</p>
+          </article>
+          <article>
+            <strong>逐条</strong>
+            <span>来源链接保留</span>
+            <p>报告中的关键判断尽量保留公开来源，方便人工追溯。</p>
+          </article>
+          <article>
+            <strong>持续</strong>
+            <span>增量更新</span>
+            <p>当年公开数据发布后，按质量校验流程逐步接入。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="trace-section app-view" data-view="sources" aria-labelledby="trace-title">
+        <div class="trace-copy">
+          <h2 id="trace-title">每条结论都尽量回答“凭什么这样判断”</h2>
+          <p>公开数据存在发布时间、格式和字段完整度差异，系统会优先展示能追溯的最低分、最低位次、估算位次和来源链接；证据不足时，不会伪装成确定结论，而是标记人工复核。</p>
+        </div>
+        <div class="trace-list">
+          <div><span>字段清洗</span><strong>学校别名、专业括号、批次名称统一</strong></div>
+          <div><span>位次补全</span><strong>缺少最低位次时用同年一分一档估算</strong></div>
+          <div><span>质量标记</span><strong>官方解析、估算位次、证据不足分层展示</strong></div>
+          <div><span>风险边界</span><strong>不承诺录取，只提示提交前风险</strong></div>
+        </div>
       </section>
 
       <section class="audience-section app-view" data-view="pricing" id="audience" aria-labelledby="audience-title">
@@ -510,6 +783,46 @@
           </article>
         </div>
         <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不保证录取结果。</p>
+      </section>
+
+      <section class="service-process-section app-view" data-view="pricing" aria-labelledby="service-process-title">
+        <div class="section-heading compact-heading">
+          <h2 id="service-process-title">购买后的服务流程清晰可控</h2>
+        </div>
+        <div class="service-timeline">
+          <article><span>1</span><h3>提交志愿表</h3><p>上传或粘贴志愿表，补充偏好、预算、限制条件。</p></article>
+          <article><span>2</span><h3>生成完整报告</h3><p>系统完成逐条风险诊断，并生成家庭可读版报告。</p></article>
+          <article><span>3</span><h3>重点问题复核</h3><p>围绕高风险、保底不足、专业限制和顺序问题集中处理。</p></article>
+          <article><span>4</span><h3>二次优化确认</h3><p>修改志愿表后再次复核，形成最终提交前版本。</p></article>
+        </div>
+      </section>
+
+      <section class="service-compare-section app-view" data-view="pricing" aria-labelledby="service-compare-title">
+        <div class="section-heading compact-heading">
+          <h2 id="service-compare-title">选择套餐时，看你需要自动化报告还是深度陪跑</h2>
+        </div>
+        <div class="compare-card">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>服务内容</th>
+                  <th>免费预览</th>
+                  <th>单次报告</th>
+                  <th>家庭决策</th>
+                  <th>咨询师版</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>整表风险预览</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>96志愿逐条诊断</td><td>部分</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>多方案对比</td><td>不含</td><td>不含</td><td>支持</td><td>支持</td></tr>
+                <tr><td>顾问沟通摘要</td><td>基础</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>批量管理</td><td>不含</td><td>不含</td><td>不含</td><td>支持</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section class="faq-section app-view" data-view="pricing" id="faq" aria-labelledby="faq-title">
@@ -620,6 +933,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260613-commercial"></script>
+    <script src="./app.js?v=20260616-depth"></script>
   </body>
 </html>
