@@ -10,7 +10,7 @@
     />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260616-depth" />
+    <link rel="stylesheet" href="./styles.css?v=20260616-merged" />
   </head>
   <body>
     <header class="site-header">
@@ -23,10 +23,8 @@
       </a>
       <nav class="main-nav" aria-label="主导航">
         <a href="#/home" data-nav-view="home">首页</a>
-        <a href="#/checkup" data-nav-view="checkup">风险评估</a>
-        <a href="#/features" data-nav-view="features">产品流程</a>
-        <a href="#/sources" data-nav-view="sources">数据中心</a>
-        <a href="#/dimensions" data-nav-view="dimensions">风险模型</a>
+        <a href="#/product" data-nav-view="product">产品介绍</a>
+        <a href="#/checkup" data-nav-view="checkup">在线评估</a>
         <a href="#/sample" data-nav-view="sample">报告样例</a>
         <a href="#/pricing" data-nav-view="pricing">服务方案</a>
       </nav>
@@ -167,7 +165,7 @@
           <p>系统先给出自动化预览，再把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
           <div class="snapshot-actions">
             <a class="solid-button" href="#/checkup">立即生成风险预览</a>
-            <a class="outline-button" href="#/sources">查看数据来源</a>
+            <a class="outline-button" href="#/product">了解产品能力</a>
           </div>
         </div>
         <div class="snapshot-panel" aria-label="报告交付内容">
@@ -190,7 +188,61 @@
         </div>
       </section>
 
-      <section class="reason-section app-view" data-view="features" id="features" aria-labelledby="features-title">
+      <section class="home-intro-section app-view" data-view="home" aria-labelledby="home-intro-title">
+        <div class="intro-layout">
+          <div>
+            <h2 id="home-intro-title">知录升学是给河北高考家庭使用的志愿提交前风险评估网站</h2>
+            <p>
+              我们不把志愿填报包装成玄学，也不承诺录取结果。网站的核心价值是把公开投档数据、位次变化、专业限制、家庭偏好和整表结构放到同一个评估流程里，让家长在提交前知道哪里风险高、哪里证据不足、哪里需要人工复核。
+            </p>
+          </div>
+          <div class="intro-points">
+            <article><span>适合谁</span><strong>河北普通类本科批、专科批考生和家长</strong></article>
+            <article><span>解决什么</span><strong>识别冲稳保失衡、保底不足、专业过热、选科和费用限制</strong></article>
+            <article><span>交付什么</span><strong>在线预览、逐条风险、证据摘要、完整报告和顾问沟通摘要</strong></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-boundary-section app-view" data-view="home" aria-labelledby="home-boundary-title">
+        <div class="section-heading compact-heading">
+          <h2 id="home-boundary-title">我们把服务边界说清楚，家长更容易判断是否需要</h2>
+        </div>
+        <div class="boundary-grid">
+          <article>
+            <i data-lucide="check-circle-2" aria-hidden="true"></i>
+            <h3>我们会做</h3>
+            <p>基于公开数据做风险识别、位次证据匹配、志愿结构诊断、个性化限制提醒和调整优先级建议。</p>
+          </article>
+          <article>
+            <i data-lucide="x-circle" aria-hidden="true"></i>
+            <h3>我们不会做</h3>
+            <p>不会承诺录取，不会代替考生最终确认，不会把证据不足的推断包装成确定结论。</p>
+          </article>
+          <article>
+            <i data-lucide="users" aria-hidden="true"></i>
+            <h3>适合配合人工复核</h3>
+            <p>系统先找出问题，家长和顾问再重点讨论专业取舍、调剂接受度、城市选择和最终排序。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="product-overview-section app-view" data-view="product" id="product" aria-labelledby="product-title">
+        <div class="product-overview-inner">
+          <div class="product-lead">
+            <h2 id="product-title">产品介绍：从一张志愿草稿，到一份可复核的风险报告</h2>
+            <p>产品介绍页把原来的产品流程、数据中心和风险模型合并在一起。你可以在这一页完整了解系统如何读取志愿表、匹配公开数据、判断风险、生成报告，以及哪些情况需要人工进一步确认。</p>
+          </div>
+          <div class="product-summary-grid">
+            <article><span>输入</span><strong>成绩、位次、选科、限制条件、志愿表</strong></article>
+            <article><span>计算</span><strong>公开投档记录、一分一档、批次线、风险模型</strong></article>
+            <article><span>输出</span><strong>整表结构、逐条风险、证据摘要、调整动作</strong></article>
+            <article><span>复核</span><strong>证据不足、专业取舍、调剂边界、最终排序</strong></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="reason-section app-view" data-view="product" id="features" aria-labelledby="features-title">
         <div class="section-heading compact-heading">
           <h2 id="features-title">为什么越来越多家长选择做风险评估？</h2>
         </div>
@@ -218,7 +270,7 @@
         </div>
       </section>
 
-      <section class="workflow-section app-view" data-view="features" id="workflow" aria-labelledby="workflow-title">
+      <section class="workflow-section app-view" data-view="product" id="workflow" aria-labelledby="workflow-title">
         <div class="section-heading compact-heading">
           <h2 id="workflow-title">10分钟完成一份志愿风险诊断报告</h2>
         </div>
@@ -250,7 +302,7 @@
         </div>
       </section>
 
-      <section class="capability-section app-view" data-view="features" aria-labelledby="capability-title">
+      <section class="capability-section app-view" data-view="product" aria-labelledby="capability-title">
         <div class="section-heading compact-heading">
           <h2 id="capability-title">成熟志愿产品该有的能力，我们拆成可执行模块</h2>
           <p>参考头部志愿工具常见的冲稳保推荐、录取概率、个性化偏好、AI咨询和报告生成能力，本站更强调河北本地数据、逐条证据和提交前风险复核。</p>
@@ -306,7 +358,7 @@
         </div>
       </section>
 
-      <section class="decision-section app-view" data-view="features" aria-labelledby="decision-title">
+      <section class="decision-section app-view" data-view="product" aria-labelledby="decision-title">
         <div class="section-heading compact-heading">
           <h2 id="decision-title">围绕真实家庭决策场景设计</h2>
         </div>
@@ -468,7 +520,7 @@
         </div>
       </section>
 
-      <section class="dimensions-section app-view" data-view="dimensions" id="dimensions" aria-labelledby="dimensions-title">
+      <section class="dimensions-section app-view" data-view="product" id="dimensions" aria-labelledby="dimensions-title">
         <div class="section-heading compact-heading">
           <h2 id="dimensions-title">核心诊断维度，全方位识别风险</h2>
         </div>
@@ -480,7 +532,7 @@
         </div>
       </section>
 
-      <section class="model-depth-section app-view" data-view="dimensions" aria-labelledby="model-depth-title">
+      <section class="model-depth-section app-view" data-view="product" aria-labelledby="model-depth-title">
         <div class="section-heading compact-heading">
           <h2 id="model-depth-title">风险模型不是黑箱，核心判断会落到可解释字段</h2>
         </div>
@@ -526,7 +578,7 @@
         </div>
       </section>
 
-      <section class="model-scenarios-section app-view" data-view="dimensions" aria-labelledby="scenario-title">
+      <section class="model-scenarios-section app-view" data-view="product" aria-labelledby="scenario-title">
         <div class="section-heading compact-heading">
           <h2 id="scenario-title">模型会优先提示这些容易被忽略的问题</h2>
         </div>
@@ -645,7 +697,7 @@
         </div>
       </section>
 
-      <section class="data-band app-view" data-view="sources" id="sources" aria-labelledby="sources-title">
+      <section class="data-band app-view" data-view="product" id="sources" aria-labelledby="sources-title">
         <div class="section-heading compact-heading invert">
           <h2 id="sources-title">权威数据，多重来源，结论可追溯</h2>
         </div>
@@ -658,7 +710,7 @@
         <p class="source-note">数据更新至公开可用年份，系统结论仅供志愿提交前风险复核参考。</p>
       </section>
 
-      <section class="data-coverage-section app-view" data-view="sources" aria-labelledby="data-coverage-title">
+      <section class="data-coverage-section app-view" data-view="product" aria-labelledby="data-coverage-title">
         <div class="section-heading compact-heading">
           <h2 id="data-coverage-title">数据中心重点解决三件事：覆盖、追溯、校验</h2>
         </div>
@@ -686,7 +738,7 @@
         </div>
       </section>
 
-      <section class="trace-section app-view" data-view="sources" aria-labelledby="trace-title">
+      <section class="trace-section app-view" data-view="product" aria-labelledby="trace-title">
         <div class="trace-copy">
           <h2 id="trace-title">每条结论都尽量回答“凭什么这样判断”</h2>
           <p>公开数据存在发布时间、格式和字段完整度差异，系统会优先展示能追溯的最低分、最低位次、估算位次和来源链接；证据不足时，不会伪装成确定结论，而是标记人工复核。</p>
@@ -878,10 +930,10 @@
         </div>
         <div>
           <h3>相关链接</h3>
-          <a href="#/features">产品功能</a>
-          <a href="#/sources">数据来源</a>
+          <a href="#/product">产品介绍</a>
+          <a href="#/checkup">在线评估</a>
+          <a href="#/sample">报告样例</a>
           <a href="#/pricing">价格方案</a>
-          <a href="#/pricing">常见问题</a>
         </div>
         <div class="qr-box" aria-label="微信咨询二维码">
           <div class="qr-pattern" aria-hidden="true"></div>
@@ -933,6 +985,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260616-depth"></script>
+    <script src="./app.js?v=20260616-merged"></script>
   </body>
 </html>

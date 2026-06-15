@@ -21,11 +21,12 @@ function createIcons() {
 
 const viewAliases = {
   top: "home",
-  features: "features",
-  workflow: "features",
+  product: "product",
+  features: "product",
+  workflow: "product",
   checkup: "checkup",
-  sources: "sources",
-  dimensions: "dimensions",
+  sources: "product",
+  dimensions: "product",
   sample: "sample",
   audience: "pricing",
   pricing: "pricing",
