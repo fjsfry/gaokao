@@ -13,6 +13,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -46,6 +47,17 @@ LICENSE_PLAN_LABELS = {
     "triple": "三次复查码",
     "season": "填报季卡",
 }
+LICENSE_PLAN_USES = {
+    "single": 1,
+    "triple": 3,
+    "season": None,
+}
+LICENSE_PLAN_MARKS = {
+    "single": "S",
+    "triple": "T",
+    "season": "Y",
+}
+LICENSE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 HTTP = requests.Session()
 
 
@@ -84,6 +96,13 @@ def get_license_hash_secret() -> str:
     if not secret:
         raise RuntimeError("LICENSE_HASH_SECRET is not configured on the server.")
     return secret
+
+
+def get_license_admin_token() -> str:
+    token = os.environ.get("LICENSE_ADMIN_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("LICENSE_ADMIN_TOKEN is not configured on the server.")
+    return token
 
 
 def get_deepseek_config() -> tuple[str, str]:
@@ -156,6 +175,12 @@ def hash_license_code(normalized_code: str) -> str:
     return hmac.new(secret, normalized_code.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
+def make_license_code(plan: str) -> str:
+    body = "".join(secrets.choice(LICENSE_CODE_ALPHABET) for _ in range(16))
+    chunks = [body[index : index + 4] for index in range(0, len(body), 4)]
+    return "-".join([f"ZL26{LICENSE_PLAN_MARKS[plan]}", *chunks])
+
+
 def parse_datetime(value: Any) -> datetime | None:
     if not value:
         return None
@@ -192,6 +217,113 @@ def get_license_row(code_hash: str) -> dict[str, Any] | None:
 
 def plan_label(plan: Any) -> str:
     return LICENSE_PLAN_LABELS.get(str(plan or ""), "授权码")
+
+
+def require_license_admin(payload: dict[str, Any]) -> None:
+    supplied = str(payload.get("adminToken") or payload.get("token") or "").strip()
+    if not supplied:
+        raise PermissionError("请输入内部发码口令。")
+    if not hmac.compare_digest(supplied, get_license_admin_token()):
+        raise PermissionError("内部发码口令不正确。")
+
+
+def parse_license_plan(value: Any) -> str:
+    plan = str(value or "single").strip()
+    if plan not in LICENSE_PLAN_USES:
+        raise ValueError("授权码套餐不正确。")
+    return plan
+
+
+def parse_license_count(value: Any) -> int:
+    count = parse_int(value, fallback=1)
+    if count < 1 or count > 20:
+        raise ValueError("单次最多生成20个授权码。")
+    return count
+
+
+def parse_license_expires_at(value: Any) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    expires_at = f"{raw}T23:59:59+08:00" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw) else raw
+    expires_at = expires_at.replace("Z", "+00:00")
+    parsed = parse_datetime(expires_at)
+    if not parsed:
+        raise ValueError("有效期格式不正确。")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+        expires_at = parsed.isoformat()
+    if parsed <= datetime.now(timezone.utc):
+        raise ValueError("有效期必须晚于当前时间。")
+    return expires_at
+
+
+def build_license_record(code: str, plan: str, note: str, expires_at: str | None) -> dict[str, Any]:
+    uses = LICENSE_PLAN_USES[plan]
+    return {
+        "code_hash": hash_license_code(normalize_license_code(code)),
+        "code_prefix": code[:10],
+        "plan": plan,
+        "total_uses": uses,
+        "remaining_uses": uses,
+        "max_uses_per_day": 20 if plan == "season" else 0,
+        "expires_at": expires_at,
+        "customer_note": note or None,
+    }
+
+
+def insert_license_record(record: dict[str, Any]) -> dict[str, Any]:
+    response = HTTP.post(
+        supabase_service_url("report_licenses"),
+        headers=supabase_service_headers({"Prefer": "return=representation"}),
+        json=record,
+        timeout=12,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError("Unexpected license create response")
+    return rows[0]
+
+
+def public_created_license(code: str, row: dict[str, Any]) -> dict[str, Any]:
+    unlimited = is_unlimited_license(row)
+    return {
+        "code": code,
+        "codePrefix": row.get("code_prefix"),
+        "plan": row.get("plan"),
+        "planLabel": plan_label(row.get("plan")),
+        "remainingUses": None if unlimited else int(row.get("remaining_uses") or 0),
+        "totalUses": None if unlimited else int(row.get("total_uses") or 0),
+        "unlimited": unlimited,
+        "maxUsesPerDay": row.get("max_uses_per_day"),
+        "expiresAt": row.get("expires_at"),
+    }
+
+
+def create_license_codes(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    require_license_admin(payload)
+    plan = parse_license_plan(payload.get("plan"))
+    count = parse_license_count(payload.get("count"))
+    note = str(payload.get("note") or "").strip()[:160]
+    expires_at = parse_license_expires_at(payload.get("expiresAt"))
+
+    created: list[dict[str, Any]] = []
+    for _ in range(count):
+        for _attempt in range(4):
+            code = make_license_code(plan)
+            record = build_license_record(code, plan, note, expires_at)
+            try:
+                row = insert_license_record(record)
+                created.append(public_created_license(code, row))
+                break
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code == HTTPStatus.CONFLICT:
+                    continue
+                raise
+        else:
+            raise RuntimeError("授权码生成冲突，请重试。")
+    return created
 
 
 def is_unlimited_license(row: dict[str, Any]) -> bool:
@@ -706,8 +838,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                         os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
                     ),
                     "has_license_hash_secret": bool(os.environ.get("LICENSE_HASH_SECRET")),
+                    "has_license_admin_token": bool(os.environ.get("LICENSE_ADMIN_TOKEN")),
                 }
             )
+            return
+        request_path = self.path.split("?", 1)[0]
+        if request_path in {"/license-admin", "/license-admin/"}:
+            self.path = "/index.html"
+            super().do_GET()
             return
         if self.path == "/api/data/overview":
             try:
@@ -752,6 +890,32 @@ class AppHandler(SimpleHTTPRequestHandler):
                         detail = exc.response.text[:500]
                 self.write_json(
                     {"ok": False, "error": "授权码数据库未初始化或暂不可用。", "detail": detail},
+                    status=HTTPStatus.BAD_GATEWAY,
+                )
+            except Exception as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
+        if self.path == "/api/admin/license/create":
+            try:
+                payload = self.read_json_payload(max_size=64 * 1024)
+                licenses = create_license_codes(payload)
+                self.write_json({"ok": True, "licenses": licenses})
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except PermissionError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            except RuntimeError:
+                self.write_json({"ok": False, "error": "内部发码系统未完成配置。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json(
+                    {"ok": False, "error": "授权码数据库写入失败。", "detail": detail},
                     status=HTTPStatus.BAD_GATEWAY,
                 )
             except Exception as exc:

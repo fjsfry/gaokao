@@ -26,6 +26,7 @@ const viewAliases = {
   features: "product",
   workflow: "product",
   checkup: "checkup",
+  "license-admin": "license-admin",
   sources: "product",
   dimensions: "product",
   sample: "sample",
@@ -39,7 +40,9 @@ function getAvailableViews() {
 }
 
 function getRouteView() {
-  const raw = decodeURIComponent(window.location.hash || "")
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  const hashValue = window.location.hash || (pathname ? `#/${pathname}` : "");
+  const raw = decodeURIComponent(hashValue)
     .replace(/^#\/?/, "")
     .split(/[?&]/)[0]
     .trim();
@@ -57,7 +60,7 @@ function setActiveView(view = getRouteView(), options = {}) {
   });
   document.body.dataset.currentView = view;
   if (normalizeHash && window.location.hash !== `#/${view}`) {
-    window.history.replaceState(null, "", `#/${view}`);
+    window.history.replaceState(null, "", `/#/${view}`);
   }
   if (scroll) {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -139,6 +142,13 @@ function renderLicenseStatus(message, tone = "muted") {
   target.dataset.tone = tone;
 }
 
+function renderAdminStatus(message, tone = "muted") {
+  const target = document.querySelector("#licenseAdminStatus");
+  if (!target) return;
+  target.textContent = message;
+  target.dataset.tone = tone;
+}
+
 async function verifyLicenseCode(button) {
   const licenseCode = getLicenseCode();
   if (!licenseCode) {
@@ -177,6 +187,130 @@ async function verifyLicenseCode(button) {
     if (button) {
       button.disabled = false;
       button.innerHTML = original || '<i data-lucide="key-round" aria-hidden="true"></i> 验证授权码';
+      createIcons();
+    }
+  }
+}
+
+function getLicenseAdminPayload(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  return {
+    adminToken: String(data.adminToken || "").trim(),
+    plan: String(data.plan || "single"),
+    count: Number.parseInt(data.count || "1", 10),
+    note: String(data.note || "").trim(),
+    expiresAt: String(data.expiresAt || "").trim()
+  };
+}
+
+function describeCreatedLicense(license) {
+  if (license.unlimited) {
+    const limit = Number(license.maxUsesPerDay || 0);
+    return `${license.planLabel}，填报季内可重复生成${limit > 0 ? `，每日上限${limit}次` : ""}`;
+  }
+  return `${license.planLabel}，共 ${license.totalUses} 次`;
+}
+
+function renderAdminLicenses(licenses = []) {
+  const target = document.querySelector("#licenseAdminResult");
+  if (!target) return;
+  if (!licenses.length) {
+    target.innerHTML = `
+      <div class="admin-empty">
+        <i data-lucide="key-round" aria-hidden="true"></i>
+        <strong>生成的授权码会显示在这里</strong>
+        <p>明文授权码只返回一次，请生成后立即复制给客户或保存到你的私密记录。</p>
+      </div>
+    `;
+    createIcons();
+    return;
+  }
+
+  const codeLines = licenses.map((item) => item.code).join("\n");
+  target.innerHTML = `
+    <div class="admin-result-head">
+      <div>
+        <span>本次已生成</span>
+        <strong>${licenses.length} 个授权码</strong>
+      </div>
+      <button class="outline-button compact" type="button" data-copy-admin-codes>
+        <i data-lucide="copy" aria-hidden="true"></i>
+        复制全部
+      </button>
+    </div>
+    <div class="admin-code-list">
+      ${licenses
+        .map(
+          (license) => `
+            <article class="admin-code-row">
+              <div>
+                <code class="admin-code-value">${escapeHTML(license.code)}</code>
+                <small>${escapeHTML(describeCreatedLicense(license))}；有效期：${escapeHTML(formatDate(license.expiresAt))}</small>
+              </div>
+              <button class="icon-button" type="button" data-copy-admin-code="${escapeHTML(license.code)}" aria-label="复制授权码">
+                <i data-lucide="copy" aria-hidden="true"></i>
+              </button>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+    <textarea class="sr-only" id="licenseAdminCopyText" readonly>${escapeHTML(codeLines)}</textarea>
+  `;
+  createIcons();
+}
+
+async function copyPlainText(text, successMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.className = "sr-only";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+  toast(successMessage);
+}
+
+async function createAdminLicenses(form, button) {
+  const payload = getLicenseAdminPayload(form);
+  if (!payload.adminToken) {
+    renderAdminStatus("请输入内部发码口令。", "error");
+    form.querySelector("#adminToken")?.focus();
+    return;
+  }
+
+  const original = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 生成中';
+    createIcons();
+  }
+  renderAdminStatus("正在写入授权码系统。", "muted");
+
+  try {
+    const response = await fetch("/api/admin/license/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "授权码生成失败");
+    }
+    renderAdminLicenses(data.licenses || []);
+    renderAdminStatus("授权码已生成，请立即复制并发给客户。", "success");
+    toast("授权码已生成");
+  } catch (error) {
+    renderAdminStatus(`${error.message} 请检查口令或稍后重试。`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = original || '<i data-lucide="key-round" aria-hidden="true"></i> 生成授权码';
       createIcons();
     }
   }
@@ -938,6 +1072,7 @@ function initInteractions() {
   }
 
   const form = document.querySelector("#riskForm");
+  const licenseAdminForm = document.querySelector("#licenseAdminForm");
   document.querySelector("#licenseCode")?.addEventListener("input", () => {
     latestLicenseState = null;
     renderLicenseStatus("授权码已修改，请重新验证；生成完整报告时会再次服务端校验。", "muted");
@@ -965,10 +1100,30 @@ function initInteractions() {
     }
   });
 
+  licenseAdminForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await createAdminLicenses(licenseAdminForm, licenseAdminForm.querySelector(".admin-submit"));
+  });
+
   document.querySelector("#downloadTemplate")?.addEventListener("click", downloadTemplate);
   initFileUpload();
 
   document.addEventListener("click", (event) => {
+    const copyAdminCode = event.target.closest("[data-copy-admin-code]");
+    if (copyAdminCode) {
+      copyPlainText(copyAdminCode.dataset.copyAdminCode || "", "已复制授权码");
+      return;
+    }
+
+    if (event.target.closest("[data-copy-admin-codes]")) {
+      const text = Array.from(document.querySelectorAll(".admin-code-value"))
+        .map((node) => node.textContent.trim())
+        .filter(Boolean)
+        .join("\n");
+      if (text) copyPlainText(text, "已复制全部授权码");
+      return;
+    }
+
     const aiButton = event.target.closest("[data-ai-report]");
     if (aiButton) {
       generateAiReport(aiButton);

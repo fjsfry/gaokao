@@ -8,10 +8,10 @@
       name="description"
       content="知录升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260616-license-codes" />
+    <meta name="app-version" content="20260616-license-admin" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260616-license-codes" />
+    <link rel="stylesheet" href="./styles.css?v=20260616-license-admin" />
   </head>
   <body>
     <header class="site-header">
@@ -928,6 +928,61 @@
           </details>
         </div>
       </section>
+
+      <section class="license-admin-section app-view" data-view="license-admin" id="license-admin" aria-labelledby="license-admin-title">
+        <div class="license-admin-shell">
+          <div class="section-heading compact-heading">
+            <span class="eyebrow">内部发码后台</span>
+            <h2 id="license-admin-title">授权码生成</h2>
+            <p>付费确认后在这里生成授权码。明文只显示一次，复制后发给客户；数据库只保存哈希和套餐信息。</p>
+          </div>
+
+          <div class="license-admin-grid">
+            <form class="license-admin-form" id="licenseAdminForm">
+              <div class="form-row">
+                <label for="adminToken">内部发码口令</label>
+                <input id="adminToken" name="adminToken" type="password" placeholder="输入管理员口令" autocomplete="current-password" />
+              </div>
+              <div class="form-row two">
+                <div>
+                  <label for="adminPlan">套餐类型</label>
+                  <select id="adminPlan" name="plan">
+                    <option value="single">单次报告码</option>
+                    <option value="triple">三次复查码</option>
+                    <option value="season">填报季卡</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="adminCount">生成数量</label>
+                  <input id="adminCount" name="count" type="number" min="1" max="20" value="1" inputmode="numeric" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="adminNote">客户备注</label>
+                <input id="adminNote" name="note" placeholder="如：张同学-微信尾号1234-三次码" maxlength="160" />
+              </div>
+              <div class="form-row">
+                <label for="adminExpiresAt">有效期</label>
+                <input id="adminExpiresAt" name="expiresAt" type="date" />
+                <small class="field-help">不填表示长期有效。填日期时，当天 23:59:59 后过期。</small>
+              </div>
+              <button class="solid-button admin-submit" type="submit">
+                <i data-lucide="key-round" aria-hidden="true"></i>
+                生成授权码
+              </button>
+              <small class="license-status" id="licenseAdminStatus" data-tone="muted">适合手机操作；请勿把内部口令发给客户。</small>
+            </form>
+
+            <aside class="license-admin-result" id="licenseAdminResult" aria-live="polite">
+              <div class="admin-empty">
+                <i data-lucide="key-round" aria-hidden="true"></i>
+                <strong>生成的授权码会显示在这里</strong>
+                <p>明文授权码只返回一次，请生成后立即复制给客户或保存到你的私密记录。</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
@@ -1005,6 +1060,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260616-license-codes"></script>
+    <script src="./app.js?v=20260616-license-admin"></script>
   </body>
 </html>

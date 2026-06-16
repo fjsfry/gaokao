@@ -1395,6 +1395,137 @@ textarea:focus {
   color: #b42318;
 }
 
+.license-admin-section {
+  min-height: calc(100vh - 64px);
+  padding: clamp(34px, 6vw, 76px) clamp(18px, 5vw, 72px);
+  background:
+    linear-gradient(180deg, rgba(233, 251, 251, 0.78), rgba(246, 251, 255, 0.96)),
+    var(--soft);
+}
+
+.license-admin-shell {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+}
+
+.license-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.license-admin-form,
+.license-admin-result {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.license-admin-form {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.license-admin-form .admin-submit {
+  width: 100%;
+}
+
+.license-admin-result {
+  min-height: 360px;
+  padding: 22px;
+}
+
+.admin-empty {
+  display: grid;
+  place-items: center;
+  min-height: 310px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.admin-empty svg {
+  width: 42px;
+  height: 42px;
+  color: var(--teal);
+}
+
+.admin-empty strong {
+  margin-top: 12px;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.admin-empty p {
+  max-width: 360px;
+  margin-top: 8px;
+  line-height: 1.7;
+}
+
+.admin-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-result-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-result-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-result-head strong {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.admin-code-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.admin-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #d6e5ef;
+  border-radius: 8px;
+  background: #f8fcff;
+}
+
+.admin-code-row div {
+  min-width: 0;
+}
+
+.admin-code-row code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #08264d;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.admin-code-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .form-submit {
   width: 100%;
 }
@@ -2227,6 +2358,7 @@ details p {
 
   .hero-inner,
   .checkup-grid,
+  .license-admin-grid,
   .intro-layout,
   .product-overview-inner,
   .home-snapshot-section,
@@ -2235,7 +2367,8 @@ details p {
   }
 
   .hero-report,
-  .live-report {
+  .live-report,
+  .license-admin-result {
     max-width: 760px;
     margin: 0 auto;
   }
@@ -2356,6 +2489,8 @@ details p {
   .hero-report,
   .checkup-form,
   .live-report,
+  .license-admin-form,
+  .license-admin-result,
   .sample-table-card {
     border-radius: 8px;
   }
@@ -2422,6 +2557,30 @@ details p {
   }
 
   .license-input-row .outline-button {
+    width: 100%;
+  }
+
+  .license-admin-section {
+    min-height: auto;
+  }
+
+  .license-admin-form,
+  .license-admin-result {
+    padding: 18px;
+  }
+
+  .admin-result-head,
+  .admin-code-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-result-head {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .admin-result-head .outline-button,
+  .admin-code-row .icon-button {
     width: 100%;
   }
 

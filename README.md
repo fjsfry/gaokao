@@ -32,6 +32,7 @@ python server.py
 - `SUPABASE_ANON_KEY`: 前端公共查询使用的 anon key。
 - `SUPABASE_SERVICE_ROLE_KEY`: 仅服务端使用，用于授权码校验、扣次和发码脚本，不要暴露给前端。
 - `LICENSE_HASH_SECRET`: 授权码 HMAC 哈希密钥；生成授权码和服务端校验必须使用同一个值。
+- `LICENSE_ADMIN_TOKEN`: 内部发码后台口令；只给运营人员使用，不要发给客户，不要提交到 GitHub。
 - `HOST` / `PORT`: 本地服务监听地址。
 
 不要提交 `.env`、DeepSeek key、Supabase service role key 或任何私密客户数据。仓库已通过 `.gitignore` 忽略 `.env` 和日志文件。
@@ -61,6 +62,23 @@ python scripts/generate_license_code.py --plan season --expires-at 2026-07-31T23
 ```
 
 不带 `--insert` 时脚本只输出明文授权码和可手动执行的 SQL；带 `--insert` 时会用 `SUPABASE_SERVICE_ROLE_KEY` 直接写入 Supabase。数据库只保存授权码 HMAC 哈希，明文授权码只会在生成时显示一次。
+
+## 手机发码后台
+
+内部发码后台地址：
+
+```text
+https://www.xunlushengxue.com.cn/license-admin
+```
+
+该入口不出现在网站导航中，适合在手机浏览器里使用。输入 `LICENSE_ADMIN_TOKEN` 后选择套餐、生成数量、客户备注和有效期，即可生成单次报告码、三次复查码或填报季卡。
+
+注意事项：
+
+- 明文授权码只在生成成功后返回一次，请立即复制给客户或保存到你的私密记录。
+- 后台接口 `/api/admin/license/create` 只接受管理员口令，写库操作全部在服务端完成。
+- 前端不会拿到 Supabase service role key、授权码哈希密钥或 DeepSeek API key。
+- 如果更换 `LICENSE_ADMIN_TOKEN`，需要同步更新 Vercel Production 环境变量并重新部署。
 
 ## GitHub Actions 爬虫
 
