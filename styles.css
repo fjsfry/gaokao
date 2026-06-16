@@ -18,6 +18,7 @@
   --green: #17a56b;
   --shadow: 0 18px 44px rgba(6, 27, 58, 0.12);
   --soft-shadow: 0 10px 28px rgba(6, 27, 58, 0.08);
+  --header-height: 64px;
 }
 
 * {
@@ -31,6 +32,7 @@ html {
 
 body {
   margin: 0;
+  padding-top: var(--header-height);
   color: var(--ink);
   background: var(--soft);
   overflow-x: hidden;
@@ -79,14 +81,16 @@ svg {
 }
 
 .site-header {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 50;
+  left: 0;
+  right: 0;
+  z-index: 70;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 28px;
-  min-height: 64px;
+  min-height: var(--header-height);
   padding: 10px clamp(20px, 5vw, 72px);
   background: linear-gradient(90deg, #041832 0%, #071f40 58%, #06244c 100%);
   color: #fff;
@@ -111,7 +115,15 @@ svg {
   font-size: 19px;
   font-weight: 900;
   line-height: 1;
+  overflow: hidden;
   box-shadow: inset -4px -4px 0 rgba(6, 27, 58, 0.1);
+}
+
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .brand-copy {
@@ -269,9 +281,11 @@ svg {
 
 .hero-copy h1 {
   color: #072147;
-  font-size: clamp(44px, 5.4vw, 70px);
+  font-size: clamp(42px, 4.8vw, 62px);
   line-height: 1.08;
   letter-spacing: 0;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .hero-copy h1 span {
@@ -2210,19 +2224,14 @@ details p {
   font-weight: 800;
 }
 
-.qr-pattern {
-  width: 106px;
-  height: 106px;
+.wechat-qr {
+  width: 128px;
+  height: 128px;
   border: 8px solid #fff;
-  border-radius: 4px;
-  background:
-    linear-gradient(#071f40 0 0) 8px 8px / 24px 24px no-repeat,
-    linear-gradient(#071f40 0 0) 58px 8px / 24px 24px no-repeat,
-    linear-gradient(#071f40 0 0) 8px 58px / 24px 24px no-repeat,
-    repeating-linear-gradient(90deg, #071f40 0 7px, transparent 7px 14px),
-    repeating-linear-gradient(0deg, rgba(7, 31, 64, 0.72) 0 7px, transparent 7px 14px),
-    #fff;
-  background-blend-mode: normal;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .footer-bottom {
@@ -2322,6 +2331,11 @@ details p {
   background: #061b3a;
 }
 
+.qr-placeholder .wechat-qr {
+  width: 156px;
+  height: 156px;
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -2344,6 +2358,10 @@ details p {
 }
 
 @media (max-width: 1180px) {
+  :root {
+    --header-height: 112px;
+  }
+
   .site-header {
     grid-template-columns: auto auto;
   }
@@ -2419,6 +2437,10 @@ details p {
 }
 
 @media (max-width: 760px) {
+  :root {
+    --header-height: 60px;
+  }
+
   .site-header {
     min-height: 60px;
     gap: 12px;

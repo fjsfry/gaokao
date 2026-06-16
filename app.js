@@ -1131,7 +1131,7 @@ function openModal(id, packageName) {
   const modal = document.querySelector(`#${id}`);
   if (!modal) return;
   if (packageName) {
-    document.querySelector("#contactLead").textContent = `咨询项目：${packageName}。电话：15303171048 / 18132691050。你也可以复制下方摘要，通过微信发给顾问。`;
+    document.querySelector("#contactLead").textContent = `咨询项目：${packageName}。电话：18233662815。你也可以复制下方摘要，通过微信发给顾问。`;
   }
   document.querySelector("#leadSummary").value = latestLeadSummary;
   modal.classList.add("is-open");
