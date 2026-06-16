@@ -1349,6 +1349,52 @@ textarea:focus {
   border-color: #a8d5d0;
 }
 
+.license-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #c7e8e4;
+  border-radius: 8px;
+  background: #f5fcfb;
+}
+
+.license-panel p {
+  margin: 0;
+  color: #526177;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.license-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.license-input-row .outline-button {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.license-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.license-status[data-tone="success"] {
+  color: #047857;
+}
+
+.license-status[data-tone="warn"] {
+  color: #9a5a00;
+}
+
+.license-status[data-tone="error"] {
+  color: #b42318;
+}
+
 .form-submit {
   width: 100%;
 }
@@ -2369,6 +2415,14 @@ details p {
 
   .form-row.two {
     grid-template-columns: 1fr;
+  }
+
+  .license-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .license-input-row .outline-button {
+    width: 100%;
   }
 
   .snapshot-panel,

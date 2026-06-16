@@ -8,10 +8,10 @@
       name="description"
       content="知录升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260616-merged-nocache2" />
+    <meta name="app-version" content="20260616-license-codes" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260616-merged-nocache2" />
+    <link rel="stylesheet" href="./styles.css?v=20260616-license-codes" />
   </head>
   <body>
     <header class="site-header">
@@ -30,7 +30,7 @@
         <a href="#/pricing" data-nav-view="pricing">服务方案</a>
       </nav>
       <div class="header-actions">
-        <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="报告中心登录咨询">登录</button>
+        <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="获取授权码">获取授权码</button>
         <a class="solid-button compact" href="#/checkup">
           <i data-lucide="sparkles" aria-hidden="true"></i>
           免费生成预览报告
@@ -477,6 +477,21 @@
               <textarea id="volunteers" name="volunteers" rows="8" placeholder="每行一个志愿：序号 学校名称 专业名称 批次"></textarea>
               <small class="field-help">示例：1 河北大学 法学 本科批。可以先粘贴前20条预览，完整报告支持96条逐条分析。</small>
             </div>
+            <div class="license-panel">
+              <div class="form-section-title">
+                <i data-lucide="key-round" aria-hidden="true"></i>
+                <strong>完整报告授权码</strong>
+              </div>
+              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 DeepSeek 完整解读报告时才会扣减次数。</p>
+              <div class="license-input-row">
+                <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
+                <button class="outline-button" type="button" data-license-check>
+                  <i data-lucide="key-round" aria-hidden="true"></i>
+                  验证授权码
+                </button>
+              </div>
+              <small class="license-status" id="licenseStatus" data-tone="muted">支持单次报告码、三次复查码和填报季卡；完整报告生成成功后才扣次数。</small>
+            </div>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
               生成逐条风险预览
@@ -799,40 +814,40 @@
           </article>
           <article class="price-card">
             <span class="plan-label">单次报告版</span>
-            <p>完整体检，单次使用</p>
+            <p>付款后获得一个单次报告码</p>
             <div class="price">￥<strong>29.9</strong></div>
             <ul>
               <li>96志愿逐条诊断</li>
               <li>梯度与保底分析</li>
               <li>个性化调整建议</li>
-              <li>PDF报告下载</li>
+              <li>生成1次完整解读报告</li>
             </ul>
-            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="单次报告版">立即购买</button>
+            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="单次报告码">立即购买</button>
           </article>
           <article class="price-card featured">
             <span class="badge">推荐</span>
-            <span class="plan-label">家庭决策版</span>
+            <span class="plan-label">三次复查版</span>
             <p>适合家庭深入讨论决策</p>
             <div class="price">￥<strong>99</strong></div>
             <ul>
               <li>包含单次报告全部内容</li>
-              <li>3次报告生成权限</li>
-              <li>多方案对比分析</li>
-              <li>报告生成保存30天</li>
+              <li>生成3次完整解读报告</li>
+              <li>适合多次调整志愿后复查</li>
+              <li>同一报告码可连续使用</li>
             </ul>
-            <button class="solid-button" type="button" data-open-modal="contactModal" data-package="家庭决策版">立即购买</button>
+            <button class="solid-button" type="button" data-open-modal="contactModal" data-package="三次复查码">立即购买</button>
           </article>
           <article class="price-card">
-            <span class="plan-label">咨询师版</span>
-            <p>为咨询师和机构服务打造</p>
-            <div class="price">￥<strong>199</strong><small>/月起</small></div>
+            <span class="plan-label">填报季卡</span>
+            <p>适合填报季反复推演</p>
+            <div class="price">￥<strong>199</strong><small>/季起</small></div>
             <ul>
-              <li>无限次报告生成</li>
-              <li>批量导入与管理</li>
-              <li>客户留资与沟通</li>
-              <li>专属数据导出服务</li>
+              <li>填报季内不限次生成</li>
+              <li>默认每日20次完整报告上限</li>
+              <li>适合多方案、多批次复核</li>
+              <li>可单独申请咨询师额度</li>
             </ul>
-            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="咨询师版">免费试用</button>
+            <button class="outline-button" type="button" data-open-modal="contactModal" data-package="填报季卡">咨询购买</button>
           </article>
         </div>
         <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不保证录取结果。</p>
@@ -843,10 +858,10 @@
           <h2 id="service-process-title">购买后的服务流程清晰可控</h2>
         </div>
         <div class="service-timeline">
-          <article><span>1</span><h3>提交志愿表</h3><p>上传或粘贴志愿表，补充偏好、预算、限制条件。</p></article>
-          <article><span>2</span><h3>生成完整报告</h3><p>系统完成逐条风险诊断，并生成家庭可读版报告。</p></article>
-          <article><span>3</span><h3>重点问题复核</h3><p>围绕高风险、保底不足、专业限制和顺序问题集中处理。</p></article>
-          <article><span>4</span><h3>二次优化确认</h3><p>修改志愿表后再次复核，形成最终提交前版本。</p></article>
+          <article><span>1</span><h3>免费生成预览</h3><p>上传或粘贴志愿表，先查看风险概况和部分逐条建议。</p></article>
+          <article><span>2</span><h3>付款获取授权码</h3><p>顾问按套餐发送单次、三次或填报季报告码，不需要注册账号。</p></article>
+          <article><span>3</span><h3>生成完整报告</h3><p>输入授权码后生成家庭可读版完整报告，成功生成后才扣次数。</p></article>
+          <article><span>4</span><h3>修改后再次复查</h3><p>三次码和填报季卡支持调整志愿表后继续复核。</p></article>
         </div>
       </section>
 
@@ -861,17 +876,17 @@
                 <tr>
                   <th>服务内容</th>
                   <th>免费预览</th>
-                  <th>单次报告</th>
-                  <th>家庭决策</th>
-                  <th>咨询师版</th>
+                  <th>单次报告码</th>
+                  <th>三次复查码</th>
+                  <th>填报季卡</th>
                 </tr>
               </thead>
               <tbody>
                 <tr><td>整表风险预览</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>96志愿逐条诊断</td><td>部分</td><td>支持</td><td>支持</td><td>支持</td></tr>
-                <tr><td>多方案对比</td><td>不含</td><td>不含</td><td>支持</td><td>支持</td></tr>
+                <tr><td>报告生成次数</td><td>0次</td><td>1次</td><td>3次</td><td>填报季内不限次</td></tr>
                 <tr><td>顾问沟通摘要</td><td>基础</td><td>支持</td><td>支持</td><td>支持</td></tr>
-                <tr><td>批量管理</td><td>不含</td><td>不含</td><td>不含</td><td>支持</td></tr>
+                <tr><td>重新调整后复查</td><td>可重新预览</td><td>需新码</td><td>支持</td><td>支持</td></tr>
               </tbody>
             </table>
           </div>
@@ -889,11 +904,15 @@
           </details>
           <details>
             <summary>数据会被保留吗？</summary>
-            <p>免费预览阶段仅用于生成本次诊断。后续上线账户体系后，会提供用户可控的报告保存、删除和下载能力。</p>
+            <p>免费预览阶段仅用于生成本次诊断。授权码只记录套餐类型、剩余次数和必要使用日志，不要求用户注册账号。</p>
+          </details>
+          <details>
+            <summary>为什么不用账号登录？</summary>
+            <p>当前采用授权码制：你付款后由顾问发送报告码，在网站输入即可生成完整报告。这样更适合微信或电话成交，也减少家长注册和找回密码成本。</p>
           </details>
           <details>
             <summary>可以修改志愿后重新诊断吗？</summary>
-            <p>可以。预览版可直接重新提交，付费报告版会按套餐支持多次生成与对比。</p>
+            <p>可以。预览版可直接重新提交；完整报告按授权码扣次数，三次复查码和填报季卡更适合反复调整后复核。</p>
           </details>
           <details>
             <summary>支持哪些省份？</summary>
@@ -901,7 +920,7 @@
           </details>
           <details>
             <summary>报告可以导出PDF吗？</summary>
-            <p>完整报告版本支持导出PDF，方便家庭沟通和咨询师复核。</p>
+            <p>完整报告生成后可复制保存，PDF导出会作为后续增强功能接入。当前以在线完整解读报告和顾问沟通摘要为主。</p>
           </details>
           <details>
             <summary>如何联系咨询顾问？</summary>
@@ -986,6 +1005,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260616-merged-nocache2"></script>
+    <script src="./app.js?v=20260616-license-codes"></script>
   </body>
 </html>

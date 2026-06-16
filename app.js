@@ -11,6 +11,7 @@ const sampleVolunteerText = `1 河北大学 法学 本科批
 
 let latestLeadSummary = "我想咨询河北省96个志愿逐条风险体检。";
 let latestReportPayload = null;
+let latestLicenseState = null;
 let selectedFileName = "";
 
 function createIcons() {
@@ -109,6 +110,76 @@ function getFormData(form) {
     volunteers: data.volunteers || "",
     selectedFileName
   };
+}
+
+function getLicenseCode() {
+  return String(document.querySelector("#licenseCode")?.value || "").trim();
+}
+
+function formatDate(value) {
+  if (!value) return "长期有效";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "有效期以顾问说明为准";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function describeLicense(license) {
+  if (!license) return "";
+  if (license.unlimited) {
+    const limit = Number(license.maxUsesPerDay || 0);
+    return `${license.planLabel}已通过；${limit > 0 ? `每日最多生成${limit}次完整报告` : "不限制生成次数"}；有效期：${formatDate(license.expiresAt)}。`;
+  }
+  return `${license.planLabel}已通过；剩余 ${license.remainingUses}/${license.totalUses} 次完整报告；有效期：${formatDate(license.expiresAt)}。`;
+}
+
+function renderLicenseStatus(message, tone = "muted") {
+  const target = document.querySelector("#licenseStatus");
+  if (!target) return;
+  target.textContent = message;
+  target.dataset.tone = tone;
+}
+
+async function verifyLicenseCode(button) {
+  const licenseCode = getLicenseCode();
+  if (!licenseCode) {
+    latestLicenseState = null;
+    renderLicenseStatus("免费预览不需要授权码；生成完整报告前请填写购买后获得的报告码。", "warn");
+    toast("请输入授权码");
+    document.querySelector("#licenseCode")?.focus();
+    return;
+  }
+
+  const original = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 验证中';
+    createIcons();
+  }
+
+  try {
+    const response = await fetch("/api/license/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ licenseCode })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "授权码验证失败");
+    }
+    latestLicenseState = data.license;
+    renderLicenseStatus(describeLicense(data.license), "success");
+    toast("授权码验证通过");
+  } catch (error) {
+    latestLicenseState = null;
+    const suffix = /联系顾问|联系客服/.test(error.message) ? "" : " 请联系顾问核对。";
+    renderLicenseStatus(`${error.message}${suffix}`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = original || '<i data-lucide="key-round" aria-hidden="true"></i> 验证授权码';
+      createIcons();
+    }
+  }
 }
 
 function splitKeywords(value) {
@@ -427,33 +498,44 @@ async function generateAiReport(button) {
     toast("请先生成逐条风险预览");
     return;
   }
+  const licenseCode = getLicenseCode();
+  if (!licenseCode) {
+    renderLicenseStatus("生成完整报告需要授权码。免费预览可以继续使用，付费后由顾问发送报告码。", "warn");
+    toast("请输入授权码");
+    document.querySelector("#licenseCode")?.focus();
+    return;
+  }
 
-  const originalText = button?.textContent;
+  const originalHTML = button?.innerHTML;
   if (button) {
     button.disabled = true;
     button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 报告生成中';
     createIcons();
   }
-  renderAiStatus("正在整理完整报告，请稍等。");
+  renderAiStatus("授权码校验通过后会扣减一次完整报告生成次数，正在整理报告。");
 
   try {
     const response = await fetch("/api/ai-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(latestReportPayload)
+      body: JSON.stringify({ ...latestReportPayload, licenseCode })
     });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       throw new Error(data.error || "AI报告生成失败");
     }
+    latestLicenseState = data.license || latestLicenseState;
+    if (data.license) {
+      renderLicenseStatus(describeLicense(data.license), "success");
+    }
     renderAiReport(data.content, { model: data.model });
     toast("完整报告已生成");
   } catch (error) {
-    renderAiStatus(`${error.message}。请联系顾问生成完整报告。`, "error");
+    renderAiStatus(`${error.message}。如果已付款，请联系顾问核对授权码。`, "error");
   } finally {
     if (button) {
       button.disabled = false;
-      button.innerHTML = originalText || '<i data-lucide="sparkles" aria-hidden="true"></i> 生成完整报告';
+      button.innerHTML = originalHTML || '<i data-lucide="sparkles" aria-hidden="true"></i> 生成完整报告';
       createIcons();
     }
   }
@@ -612,7 +694,7 @@ async function renderReport(formData) {
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          <span>逐条体检结果已生成。点击下方按钮后，可以整理成家长可读的完整报告。</span>
+          <span>逐条体检结果已生成。输入购买后获得的授权码，即可整理成家长可读的完整报告。</span>
         </div>
       </div>
 
@@ -856,6 +938,11 @@ function initInteractions() {
   }
 
   const form = document.querySelector("#riskForm");
+  document.querySelector("#licenseCode")?.addEventListener("input", () => {
+    latestLicenseState = null;
+    renderLicenseStatus("授权码已修改，请重新验证；生成完整报告时会再次服务端校验。", "muted");
+  });
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const submit = form.querySelector(".form-submit");
@@ -885,6 +972,12 @@ function initInteractions() {
     const aiButton = event.target.closest("[data-ai-report]");
     if (aiButton) {
       generateAiReport(aiButton);
+      return;
+    }
+
+    const licenseButton = event.target.closest("[data-license-check]");
+    if (licenseButton) {
+      verifyLicenseCode(licenseButton);
       return;
     }
 

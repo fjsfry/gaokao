@@ -1,13 +1,14 @@
 # 知录升学高考志愿填报风险评估系统
 
-面向河北新高考家庭和志愿填报咨询师的风险评估系统。网站按导航拆分为首页、风险评估、产品流程、数据中心、风险模型、报告样例和服务方案，不再是单页长滚动展示。
+面向河北新高考家庭和志愿填报咨询师的风险评估系统。网站按导航拆分为首页、产品介绍、在线评估、报告样例和服务方案，不再是单页长滚动展示。
 
 ## 功能
 
 - 96 个志愿逐条风险预览：冲稳保、梯度、选科限制、预算和专业偏好。
 - 河北公开数据匹配：批次线、一分一档、历年投档记录和来源链接。
 - Excel / CSV / TXT 志愿表导入：浏览器端解析，不上传 API 密钥。
-- DeepSeek 服务端报告生成：前端只调用本地 `/api/ai-report`，密钥只保存在服务器环境变量。
+- 授权码制完整报告：无需登录，客户付款后输入单次、三次或填报季授权码。
+- DeepSeek 服务端报告生成：前端只调用本地 `/api/ai-report`，DeepSeek key 与授权码校验密钥只保存在服务器环境变量。
 - GitHub Actions 定时爬取：默认覆盖 2021-2026 年公开数据，同步前校验 SQLite 核心表。
 
 ## 本地运行
@@ -29,9 +30,37 @@ python server.py
 - `DEEPSEEK_REASONING_EFFORT`: 默认 `high`。
 - `SUPABASE_URL`: Supabase 项目地址。
 - `SUPABASE_ANON_KEY`: 前端公共查询使用的 anon key。
+- `SUPABASE_SERVICE_ROLE_KEY`: 仅服务端使用，用于授权码校验、扣次和发码脚本，不要暴露给前端。
+- `LICENSE_HASH_SECRET`: 授权码 HMAC 哈希密钥；生成授权码和服务端校验必须使用同一个值。
 - `HOST` / `PORT`: 本地服务监听地址。
 
 不要提交 `.env`、DeepSeek key、Supabase service role key 或任何私密客户数据。仓库已通过 `.gitignore` 忽略 `.env` 和日志文件。
+
+## 授权码 / 报告码
+
+完整报告不采用账号登录。用户可以免费生成风险预览；购买后由顾问发送授权码，生成 DeepSeek 完整解读报告时才扣次数。
+
+授权码类型：
+
+- `single`: 单次报告码，完整报告生成 1 次。
+- `triple`: 三次复查码，完整报告生成 3 次。
+- `season`: 填报季卡，不限制总次数，默认每天最多 20 次完整报告。
+
+数据库结构在：
+
+```text
+supabase/migrations/20260616090000_report_license_codes.sql
+```
+
+在 Supabase SQL Editor 执行该迁移后，使用脚本生成授权码：
+
+```bash
+python scripts/generate_license_code.py --plan single --note "客户备注"
+python scripts/generate_license_code.py --plan triple --note "客户备注" --insert
+python scripts/generate_license_code.py --plan season --expires-at 2026-07-31T23:59:59+08:00 --insert
+```
+
+不带 `--insert` 时脚本只输出明文授权码和可手动执行的 SQL；带 `--insert` 时会用 `SUPABASE_SERVICE_ROLE_KEY` 直接写入 Supabase。数据库只保存授权码 HMAC 哈希，明文授权码只会在生成时显示一次。
 
 ## GitHub Actions 爬虫
 

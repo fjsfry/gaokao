@@ -8,8 +8,12 @@ structured diagnosis result to /api/ai-report, and this server calls DeepSeek.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import re
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -37,6 +41,11 @@ PUBLIC_TABLES = {
     "score_rank_table",
     "school_admission_summary",
 }
+LICENSE_PLAN_LABELS = {
+    "single": "单次报告码",
+    "triple": "三次复查码",
+    "season": "填报季卡",
+}
 HTTP = requests.Session()
 
 
@@ -60,6 +69,21 @@ def get_supabase_config() -> tuple[str, str]:
     if not key:
         raise RuntimeError("SUPABASE_ANON_KEY is not configured on the server.")
     return url, key
+
+
+def get_supabase_service_config() -> tuple[str, str]:
+    url = os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL).rstrip("/")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", os.environ.get("SUPABASE_SERVICE_KEY", "")).strip()
+    if not key:
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is not configured on the server.")
+    return url, key
+
+
+def get_license_hash_secret() -> str:
+    secret = os.environ.get("LICENSE_HASH_SECRET", "").strip()
+    if not secret:
+        raise RuntimeError("LICENSE_HASH_SECRET is not configured on the server.")
+    return secret
 
 
 def get_deepseek_config() -> tuple[str, str]:
@@ -100,6 +124,258 @@ def supabase_get(table: str, params: dict[str, str], timeout: int = 20) -> list[
     if not isinstance(data, list):
         raise RuntimeError("Unexpected Supabase response")
     return data
+
+
+def supabase_service_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    _, key = get_supabase_service_config()
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def supabase_service_url(table: str) -> str:
+    url, _ = get_supabase_service_config()
+    return f"{url}/rest/v1/{table}"
+
+
+def normalize_license_code(value: Any) -> str:
+    code = re.sub(r"[\s-]+", "", str(value or "").upper())
+    if not re.fullmatch(r"[A-Z0-9]{12,64}", code):
+        raise ValueError("授权码格式不正确，请检查是否复制完整。")
+    return code
+
+
+def hash_license_code(normalized_code: str) -> str:
+    secret = get_license_hash_secret().encode("utf-8")
+    return hmac.new(secret, normalized_code.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def parse_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def get_license_row(code_hash: str) -> dict[str, Any] | None:
+    response = HTTP.get(
+        supabase_service_url("report_licenses"),
+        params={
+            "select": (
+                "id,code_prefix,plan,total_uses,remaining_uses,max_uses_per_day,"
+                "expires_at,status,customer_note,last_used_at,created_at"
+            ),
+            "code_hash": f"eq.{code_hash}",
+            "limit": "1",
+        },
+        headers=supabase_service_headers(),
+        timeout=12,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    if not isinstance(rows, list):
+        raise RuntimeError("Unexpected license lookup response")
+    return rows[0] if rows else None
+
+
+def plan_label(plan: Any) -> str:
+    return LICENSE_PLAN_LABELS.get(str(plan or ""), "授权码")
+
+
+def is_unlimited_license(row: dict[str, Any]) -> bool:
+    return str(row.get("plan")) == "season" or row.get("total_uses") is None
+
+
+def validate_license_row(row: dict[str, Any]) -> None:
+    if row.get("status") != "active":
+        raise PermissionError("授权码已停用，请联系顾问处理。")
+    expires_at = parse_datetime(row.get("expires_at"))
+    if expires_at and expires_at <= datetime.now(timezone.utc):
+        raise PermissionError("授权码已过期，请联系顾问续期。")
+    if not is_unlimited_license(row) and int(row.get("remaining_uses") or 0) <= 0:
+        raise PermissionError("授权码次数已用完，请购买新的报告码。")
+
+
+def public_license_state(row: dict[str, Any]) -> dict[str, Any]:
+    unlimited = is_unlimited_license(row)
+    remaining = None if unlimited else int(row.get("remaining_uses") or 0)
+    total = None if unlimited else int(row.get("total_uses") or 0)
+    return {
+        "ok": True,
+        "id": row.get("id"),
+        "codePrefix": row.get("code_prefix"),
+        "plan": row.get("plan"),
+        "planLabel": plan_label(row.get("plan")),
+        "remainingUses": remaining,
+        "totalUses": total,
+        "unlimited": unlimited,
+        "maxUsesPerDay": row.get("max_uses_per_day"),
+        "expiresAt": row.get("expires_at"),
+        "lastUsedAt": row.get("last_used_at"),
+    }
+
+
+def count_license_events_today(license_id: str, event_type: str = "consume") -> int:
+    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    response = HTTP.get(
+        supabase_service_url("report_license_events"),
+        params={
+            "select": "id",
+            "license_id": f"eq.{license_id}",
+            "event_type": f"eq.{event_type}",
+            "created_at": f"gte.{start}",
+        },
+        headers=supabase_service_headers({"Prefer": "count=exact"}),
+        timeout=12,
+    )
+    response.raise_for_status()
+    content_range = response.headers.get("Content-Range", "")
+    if "/" in content_range:
+        try:
+            return int(content_range.rsplit("/", 1)[1])
+        except ValueError:
+            return 0
+    rows = response.json()
+    return len(rows) if isinstance(rows, list) else 0
+
+
+def insert_license_event(
+    row: dict[str, Any],
+    *,
+    event_type: str,
+    uses_delta: int,
+    request_fingerprint: str,
+    client_ip: str,
+    user_agent: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    payload = {
+        "license_id": row.get("id"),
+        "event_type": event_type,
+        "uses_delta": uses_delta,
+        "request_fingerprint": request_fingerprint,
+        "client_ip": client_ip or None,
+        "user_agent": user_agent[:500],
+        "metadata": metadata or {},
+    }
+    response = HTTP.post(
+        supabase_service_url("report_license_events"),
+        headers=supabase_service_headers(),
+        json=payload,
+        timeout=12,
+    )
+    response.raise_for_status()
+
+
+def verify_license_code(value: Any) -> dict[str, Any]:
+    normalized = normalize_license_code(value)
+    row = get_license_row(hash_license_code(normalized))
+    if not row:
+        raise PermissionError("授权码不存在或输入错误。")
+    validate_license_row(row)
+    return row
+
+
+def consume_license_code(
+    value: Any,
+    *,
+    request_fingerprint: str,
+    client_ip: str,
+    user_agent: str,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row = verify_license_code(value)
+    now = utc_now_iso()
+
+    if is_unlimited_license(row):
+        daily_limit = int(row.get("max_uses_per_day") or 20)
+        if daily_limit > 0 and count_license_events_today(str(row["id"])) >= daily_limit:
+            raise PermissionError("授权码今日生成次数已达上限，请明天再试或联系顾问。")
+        response = HTTP.patch(
+            supabase_service_url("report_licenses"),
+            params={"id": f"eq.{row['id']}", "status": "eq.active"},
+            headers=supabase_service_headers({"Prefer": "return=representation"}),
+            json={"last_used_at": now, "updated_at": now},
+            timeout=12,
+        )
+    else:
+        remaining = int(row.get("remaining_uses") or 0)
+        response = HTTP.patch(
+            supabase_service_url("report_licenses"),
+            params={
+                "id": f"eq.{row['id']}",
+                "status": "eq.active",
+                "remaining_uses": f"eq.{remaining}",
+            },
+            headers=supabase_service_headers({"Prefer": "return=representation"}),
+            json={"remaining_uses": remaining - 1, "last_used_at": now, "updated_at": now},
+            timeout=12,
+        )
+
+    response.raise_for_status()
+    updated = response.json()
+    if not isinstance(updated, list) or not updated:
+        raise PermissionError("授权码正在被使用，请稍后重试。")
+    consumed = updated[0]
+    insert_license_event(
+        consumed,
+        event_type="consume",
+        uses_delta=0 if is_unlimited_license(consumed) else -1,
+        request_fingerprint=request_fingerprint,
+        client_ip=client_ip,
+        user_agent=user_agent,
+        metadata=metadata,
+    )
+    return consumed
+
+
+def refund_license_use(
+    row: dict[str, Any],
+    *,
+    request_fingerprint: str,
+    client_ip: str,
+    user_agent: str,
+    reason: str,
+) -> None:
+    if not row or is_unlimited_license(row):
+        return
+    total = int(row.get("total_uses") or 0)
+    remaining = int(row.get("remaining_uses") or 0)
+    restored = min(total, remaining + 1)
+    now = utc_now_iso()
+    try:
+        response = HTTP.patch(
+            supabase_service_url("report_licenses"),
+            params={"id": f"eq.{row['id']}"},
+            headers=supabase_service_headers({"Prefer": "return=representation"}),
+            json={"remaining_uses": restored, "updated_at": now},
+            timeout=12,
+        )
+        response.raise_for_status()
+        insert_license_event(
+            {**row, "remaining_uses": restored},
+            event_type="refund",
+            uses_delta=1,
+            request_fingerprint=request_fingerprint,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            metadata={"reason": reason[:200]},
+        )
+    except Exception:
+        # Do not hide the original AI failure if refund bookkeeping fails.
+        return
 
 
 def is_statement_timeout(exc: requests.HTTPError) -> bool:
@@ -395,6 +671,28 @@ class AppHandler(SimpleHTTPRequestHandler):
                     del self.headers[header]
         return super().send_head()
 
+    def client_ip(self) -> str:
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return forwarded.split(",", 1)[0].strip()
+        return self.client_address[0] if self.client_address else ""
+
+    def user_agent(self) -> str:
+        return self.headers.get("User-Agent", "")
+
+    def request_fingerprint(self) -> str:
+        raw = f"{self.client_ip()}|{self.user_agent()}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def read_json_payload(self, max_size: int = 1024 * 1024) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length > max_size:
+            raise ValueError("payload too large")
+        payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+        if not isinstance(payload, dict):
+            raise ValueError("JSON body must be an object")
+        return payload
+
     def do_GET(self) -> None:
         if self.path == "/api/health":
             self.write_json(
@@ -404,6 +702,10 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "deepseek_base_url": os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL),
                     "has_api_key": bool(os.environ.get("DEEPSEEK_API_KEY")),
                     "has_public_data_key": bool(os.environ.get("SUPABASE_ANON_KEY")),
+                    "has_license_service_key": bool(
+                        os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+                    ),
+                    "has_license_hash_secret": bool(os.environ.get("LICENSE_HASH_SECRET")),
                 }
             )
             return
@@ -430,12 +732,35 @@ class AppHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
+        if self.path == "/api/license/verify":
+            try:
+                payload = self.read_json_payload(max_size=64 * 1024)
+                row = verify_license_code(payload.get("licenseCode"))
+                self.write_json({"ok": True, "license": public_license_state(row)})
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except PermissionError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            except RuntimeError:
+                self.write_json({"ok": False, "error": "授权码系统未完成配置，请联系顾问处理。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json(
+                    {"ok": False, "error": "授权码数据库未初始化或暂不可用。", "detail": detail},
+                    status=HTTPStatus.BAD_GATEWAY,
+                )
+            except Exception as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
         if self.path == "/api/checkup":
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if length > 1024 * 1024:
-                    raise ValueError("payload too large")
-                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                payload = self.read_json_payload()
                 context = fetch_data_context(payload)
                 self.write_json({"ok": True, "context": context})
             except requests.HTTPError as exc:
@@ -468,12 +793,56 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length > 1024 * 1024:
-                raise ValueError("payload too large")
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            payload = self.read_json_payload()
         except Exception as exc:
             self.write_json({"ok": False, "error": f"Invalid JSON: {exc}"}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        license_code = payload.get("licenseCode") or (payload.get("license") or {}).get("code")
+        if not license_code:
+            self.write_json(
+                {"ok": False, "licenseRequired": True, "error": "请输入购买后获得的授权码，再生成完整报告。"},
+                status=HTTPStatus.PAYMENT_REQUIRED,
+            )
+            return
+
+        try:
+            license_row = consume_license_code(
+                license_code,
+                request_fingerprint=self.request_fingerprint(),
+                client_ip=self.client_ip(),
+                user_agent=self.user_agent(),
+                metadata={
+                    "diagnosis_count": len(payload.get("diagnoses") or []),
+                    "score": (payload.get("formData") or {}).get("score"),
+                    "rank": (payload.get("formData") or {}).get("rank"),
+                    "subject": (payload.get("formData") or {}).get("subject"),
+                    "batch": (payload.get("formData") or {}).get("batch"),
+                },
+            )
+        except ValueError as exc:
+            self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+        except PermissionError as exc:
+            self.write_json({"ok": False, "licenseRequired": True, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            return
+        except RuntimeError:
+            self.write_json({"ok": False, "error": "授权码系统未完成配置，请联系顾问处理。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            return
+        except requests.HTTPError as exc:
+            detail: Any = str(exc)
+            if exc.response is not None:
+                try:
+                    detail = exc.response.json()
+                except Exception:
+                    detail = exc.response.text[:500]
+            self.write_json(
+                {"ok": False, "error": "授权码系统暂不可用，请联系顾问处理。", "detail": detail},
+                status=HTTPStatus.BAD_GATEWAY,
+            )
+            return
+        except Exception as exc:
+            self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return
 
         body = {
@@ -508,9 +877,17 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "model": data.get("model", model),
                     "content": content,
                     "usage": data.get("usage"),
+                    "license": public_license_state(license_row),
                 }
             )
         except requests.HTTPError as exc:
+            refund_license_use(
+                license_row,
+                request_fingerprint=self.request_fingerprint(),
+                client_ip=self.client_ip(),
+                user_agent=self.user_agent(),
+                reason="DeepSeek HTTP error",
+            )
             status = exc.response.status_code if exc.response is not None else HTTPStatus.BAD_GATEWAY
             try:
                 detail = exc.response.json()
@@ -518,6 +895,13 @@ class AppHandler(SimpleHTTPRequestHandler):
                 detail = exc.response.text[:500] if exc.response is not None else str(exc)
             self.write_json({"ok": False, "error": "DeepSeek API request failed.", "detail": detail}, status=status)
         except Exception as exc:
+            refund_license_use(
+                license_row,
+                request_fingerprint=self.request_fingerprint(),
+                client_ip=self.client_ip(),
+                user_agent=self.user_agent(),
+                reason=str(exc),
+            )
             self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
 
     def write_json(self, data: dict[str, Any], status: int = HTTPStatus.OK) -> None:
