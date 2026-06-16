@@ -388,6 +388,13 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_header("Expires", "0")
         super().end_headers()
 
+    def send_head(self) -> Any:
+        if not self.path.startswith("/api/"):
+            for header in ("If-Modified-Since", "If-None-Match"):
+                if header in self.headers:
+                    del self.headers[header]
+        return super().send_head()
+
     def do_GET(self) -> None:
         if self.path == "/api/health":
             self.write_json(
