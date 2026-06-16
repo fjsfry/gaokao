@@ -522,10 +522,34 @@ def is_statement_timeout(exc: requests.HTTPError) -> bool:
 
 def clean_search_term(value: Any, max_len: int = 40) -> str:
     text = str(value or "").strip()
+    text = re.sub(r"^(?:第)?\d{1,3}(?:个)?志愿[:：、.\s-]*", "", text)
+    text = re.sub(r"^(?:院校|学校|专业|计划)?(?:代码|代号|编号)[:：\s]*", "", text)
+    text = re.sub(r"^[A-Z]?\d{2,8}[A-Z]?(?:组)?[:：、.\s-]*", "", text, flags=re.IGNORECASE)
     text = text.replace("[公办]", "").replace("[民办]", "").replace("[独立学院]", "")
-    for char in "%*_()[]{}":
+    text = text.replace("（公办）", "").replace("（民办）", "").replace("（独立学院）", "")
+    text = re.sub(r"^(?:学校名称|院校名称|招生院校|院校|学校|专业名称|招生专业|专业类|专业)[:：\s]*", "", text)
+    text = re.sub(r"(?:本科提前批|本科批|专科批|普通类本科批|普通类专科批|物理科目组合|历史科目组合|物理类|历史类)", "", text)
+    for char in "%*_()[]{}（）【】":
         text = text.replace(char, "")
-    return text[:max_len]
+    return re.sub(r"\s+", "", text)[:max_len]
+
+
+def major_query_candidates(value: Any) -> list[str]:
+    raw = clean_search_term(value)
+    candidates: list[str] = []
+    for candidate in [
+        raw,
+        re.sub(r"（[^）]*(?:含|包含|方向|培养|校区|学费|年|授予|办学|合作|师范)[^）]*）", "", raw),
+        re.sub(r"\([^)]*(?:含|包含|方向|培养|校区|学费|年|授予|办学|合作|师范)[^)]*\)", "", raw),
+        re.split(r"含|包含|[、,，/／|;；]", raw, maxsplit=1)[0],
+    ]:
+        candidate = clean_search_term(candidate, max_len=24)
+        if not candidate or candidate in candidates:
+            continue
+        if len(candidate) < 2:
+            continue
+        candidates.append(candidate)
+    return candidates[:3]
 
 
 def parse_int(value: Any, fallback: int = 0) -> int:
@@ -679,22 +703,47 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
 
     for volunteer in volunteers[:96]:
         order_no = str(volunteer.get("orderNo") or "")
-        school = clean_search_term(volunteer.get("schoolName"))
-        major = clean_search_term(volunteer.get("majorName"))
+        school = clean_search_term(volunteer.get("matchSchoolName") or volunteer.get("schoolName"))
+        major = clean_search_term(volunteer.get("matchMajorName") or volunteer.get("majorName"))
+        major_candidates = major_query_candidates(major)
         if not order_no or not school:
             continue
 
-        rows = safe_admission_get(
-            admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=True, limit=18)
-        )
-        if not rows and major:
-            rows = safe_admission_get(admission_params(school, major, fuzzy_school=True, include_major=False, limit=12))
-        if not rows:
+        rows: list[dict[str, Any]] = []
+        for major_candidate in major_candidates or [""]:
             rows = safe_admission_get(
-                admission_params(school, major, fuzzy_school=True, include_major=bool(major), exact_batch=False, limit=10)
+                admission_params(
+                    school,
+                    major_candidate,
+                    fuzzy_school=True,
+                    include_major=bool(major_candidate),
+                    exact_batch=True,
+                    limit=18,
+                )
+            )
+            if rows:
+                break
+        if not rows and major_candidates:
+            rows = safe_admission_get(
+                admission_params(school, major_candidates[0], fuzzy_school=True, include_major=False, limit=12)
             )
         if not rows:
-            rows = safe_admission_get(admission_params(school, major, include_major=bool(major), exact_batch=True, limit=8))
+            preferred_major = major_candidates[0] if major_candidates else major
+            rows = safe_admission_get(
+                admission_params(
+                    school,
+                    preferred_major,
+                    fuzzy_school=True,
+                    include_major=bool(preferred_major),
+                    exact_batch=False,
+                    limit=10,
+                )
+            )
+        if not rows:
+            preferred_major = major_candidates[0] if major_candidates else major
+            rows = safe_admission_get(
+                admission_params(school, preferred_major, include_major=bool(preferred_major), exact_batch=True, limit=8)
+            )
         admission_matches[order_no] = enrich_rank_from_score(rows)
 
     return {

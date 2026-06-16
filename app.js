@@ -323,16 +323,222 @@ function splitKeywords(value) {
     .filter(Boolean);
 }
 
-function parseVolunteerLine(line, fallbackOrder) {
-  const cleaned = line
-    .replace(/[，,]/g, " ")
-    .replace(/[＋+]/g, " ")
+const batchPattern = /本科提前批|本科批|专科批|提前批|普通类本科批|普通本科批|普通类专科批|普通专科批/;
+const subjectPattern = /物理科目组合|历史科目组合|物理类|历史类|理工类|文史类|综合改革|不限|首选物理|首选历史/;
+const schoolNamePattern =
+  /[\u4e00-\u9fa5A-Za-z0-9·（）()]+?(?:高等专科学校|职业技术大学|职业学院|专科学校|医学院|警官学院|师范学院|财经学院|理工学院|科技学院|工程学院|艺术学院|体育学院|政法学院|外国语学院|大学|学院|学校)/;
+const headerNoisePattern = /志愿|序号|学校|院校|专业|批次|科目|科类|代码|代号|备注|计划|学制|学费|校区|选科/;
+
+function normalizeCellText(value) {
+  return String(value ?? "")
+    .replace(/\uFEFF/g, "")
+    .replace(/[　\r\n\t]+/g, " ")
+    .replace(/[【】\[\]]/g, " ")
+    .replace(/[（）]/g, (char) => (char === "（" ? "(" : ")"))
     .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripLeadingCode(value) {
+  return normalizeCellText(value)
+    .replace(/^(?:第)?\d{1,3}(?:个)?志愿[:：、.\s-]*/u, "")
+    .replace(/^(?:院校|学校|专业|计划)?(?:代码|代号|编号)[:：\s]*/u, "")
+    .replace(/^[A-Z]?\d{2,8}[A-Z]?(?:组)?[:：、.\s-]*/iu, "")
+    .trim();
+}
+
+function stripCommonLabel(value) {
+  return stripLeadingCode(value)
+    .replace(
+      /^(?:学校名称|院校名称|招生院校|院校|学校|专业名称|招生专业|专业\(类\)|专业类|专业|录取批次|批次|科目组合|选科要求|科类)[:：\s]*/u,
+      ""
+    )
+    .trim();
+}
+
+function stripMetaText(value) {
+  return normalizeCellText(value)
+    .replace(batchPattern, " ")
+    .replace(subjectPattern, " ")
+    .replace(/\S*校区/g, " ")
+    .replace(/(?:学制|学费|收费|校区|备注|计划数|招生计划)[:：]?\s*[^,，;；]*/g, " ")
+    .replace(/\b\d+(?:\.\d+)?(?:分|名|元|年|人)?\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanSchoolDisplay(value) {
+  let text = stripCommonLabel(value)
+    .replace(/\([^)]*(?:公办|民办|独立学院|中外合作办学|校企合作)[^)]*\)/g, " ")
+    .replace(/(?:公办|民办|独立学院|本科|专科|普通类|招生计划|计划数).*$/g, " ")
+    .replace(batchPattern, " ")
+    .replace(subjectPattern, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const schoolMatch = text.match(schoolNamePattern);
+  if (schoolMatch) text = schoolMatch[0];
+  return text.replace(/[;；,，、]+$/g, "").trim();
+}
+
+function cleanMajorDisplay(value) {
+  return stripCommonLabel(value)
+    .replace(/\([^)]*(?:\d+\s*年|年制|学制)[^)]*\)/g, "")
+    .replace(batchPattern, " ")
+    .replace(subjectPattern, " ")
+    .replace(/\S*校区/g, " ")
+    .replace(/^(?:类中|普通类|本科|专科)\s*/g, "")
+    .replace(/(?:学制|学费|收费|校区|备注|计划数|招生计划)[:：]?\s*[^,，;；]*/g, " ")
+    .replace(/^[A-Z]?\d{2,8}[A-Z]?(?:组)?[:：、.\s-]*/iu, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[;；,，、]+|[;；,，、]+$/g, "")
+    .trim();
+}
+
+function simplifyMajorForMatch(value) {
+  let text = cleanMajorDisplay(value)
+    .replace(/\([^)]*(?:含|包含|方向|培养|校区|学费|年|授予|办学|合作|师范)[^)]*\)/g, "")
+    .replace(/(?:含|包含).*/g, "")
+    .replace(/[\/／|].*/g, "")
+    .replace(/[;；,，、].*/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  if (/^[\u4e00-\u9fa5]{2,16}类/.test(text)) {
+    text = text.replace(/类.*$/, "类");
+  }
+  return text || cleanMajorDisplay(value);
+}
+
+function extractBatchFromCells(cells, fallback = "本科批") {
+  const text = cells.map(normalizeCellText).join(" ");
+  const match = text.match(batchPattern);
+  if (!match) return fallback;
+  const value = match[0];
+  if (value.includes("专科")) return "专科批";
+  if (value.includes("提前")) return "本科提前批";
+  return "本科批";
+}
+
+function parseOrderNoFromCells(cells, fallbackOrder) {
+  for (const cell of cells) {
+    const text = normalizeCellText(cell);
+    const explicit = text.match(/(?:第)?\s*(\d{1,3})\s*(?:个)?志愿/u);
+    const plain = text.match(/^\s*(\d{1,3})(?:[.、\s-]|$)/u);
+    const value = Number((explicit || plain || [])[1]);
+    if (Number.isInteger(value) && value >= 1 && value <= 200) return value;
+  }
+  return fallbackOrder;
+}
+
+function isHeaderLikeCell(value) {
+  const text = normalizeCellText(value);
+  return Boolean(text && headerNoisePattern.test(text) && text.length <= 12 && !schoolNamePattern.test(text));
+}
+
+function isNoiseCell(value) {
+  const text = normalizeCellText(value);
+  if (!text) return true;
+  if (isHeaderLikeCell(text)) return true;
+  if (!/[\u4e00-\u9fa5]/.test(text)) return true;
+  if (batchPattern.test(text) || subjectPattern.test(text)) return true;
+  if (/^(?:\d+(?:\.\d+)?)(?:分|名|元|年|人)?$/.test(text)) return true;
+  if (/^(?:公办|民办|独立学院|中外合作办学|校企合作)$/.test(text)) return true;
+  if (/^(?:学制|学费|收费|校区|备注|计划|选科|再选科|首选科目|专业组)[:：]?/.test(text)) return true;
+  if (/^(?:不限|不提科目要求|物理|历史|化学|生物|政治|地理)(?:[,，、/ ]|$)/.test(text)) return true;
+  return false;
+}
+
+function extractLabeledValue(cells, labelPattern) {
+  for (const cell of cells) {
+    const text = normalizeCellText(cell);
+    const match = text.match(new RegExp(`(?:${labelPattern})[^:：]*[:：]\\s*(.+)$`));
+    if (match?.[1]) return match[1];
+  }
+  return "";
+}
+
+function extractMajorAfterSchool(combinedText, schoolName) {
+  if (!schoolName) return "";
+  const start = combinedText.indexOf(schoolName);
+  if (start < 0) return "";
+  const afterSchool = combinedText.slice(start + schoolName.length);
+  return cleanMajorDisplay(stripMetaText(afterSchool));
+}
+
+function inferVolunteerFromCells(row, fallbackOrder) {
+  const cells = row.map(normalizeCellText).filter(Boolean);
+  if (!cells.length) return null;
+  const rowText = cells.join(" ");
+  if (!/[\u4e00-\u9fa5]/.test(rowText) || /^说明|^注[:：]|合计|总计|志愿填报表|考生信息/.test(rowText)) return null;
+
+  const orderNo = parseOrderNoFromCells(cells, fallbackOrder);
+  const batch = extractBatchFromCells(cells);
+  const labeledSchool = cleanSchoolDisplay(extractLabeledValue(cells, "学校|院校|招生院校|院校名称|学校名称"));
+  const labeledMajor = cleanMajorDisplay(extractLabeledValue(cells, "专业|招生专业|专业名称|专业\\(类\\)|专业类"));
+
+  let schoolName = labeledSchool;
+  let schoolCellIndex = -1;
+  if (!schoolName) {
+    schoolCellIndex = cells.findIndex((cell) => schoolNamePattern.test(cleanSchoolDisplay(cell)));
+    if (schoolCellIndex >= 0) {
+      schoolName = cleanSchoolDisplay(cells[schoolCellIndex]);
+    }
+  }
+  if (!schoolName) {
+    const schoolMatch = rowText.match(schoolNamePattern);
+    if (schoolMatch) schoolName = cleanSchoolDisplay(schoolMatch[0]);
+  }
+  if (!schoolName) return null;
+
+  let majorName = labeledMajor;
+  if (!majorName) {
+    const afterSchool = extractMajorAfterSchool(rowText, schoolName);
+    if (afterSchool) majorName = afterSchool;
+  }
+  if (!majorName) {
+    const orderedCells =
+      schoolCellIndex >= 0
+        ? [...cells.slice(schoolCellIndex + 1), ...cells.slice(0, schoolCellIndex)]
+        : cells;
+    const candidates = orderedCells
+      .map(cleanMajorDisplay)
+      .filter((cell) => cell && !isNoiseCell(cell) && !schoolNamePattern.test(cell) && cell !== schoolName);
+    majorName = candidates[0] || "";
+  }
+  if (!majorName) return null;
+
+  majorName = majorName.replace(schoolName, "").trim();
+  if (!majorName || isNoiseCell(majorName)) return null;
+
+  return {
+    orderNo,
+    schoolName,
+    majorName,
+    batch,
+    matchSchoolName: cleanSchoolDisplay(schoolName),
+    matchMajorName: simplifyMajorForMatch(majorName)
+  };
+}
+
+function parseVolunteerLine(line, fallbackOrder) {
+  const cleaned = normalizeCellText(line)
+    .replace(/[＋+]/g, " ")
     .trim();
 
   if (!cleaned || /志愿序号|学校名称|专业名称/.test(cleaned)) return null;
 
-  const parts = cleaned.split(" ");
+  const cells = cleaned
+    .split(/\t|,|，/)
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+  const row = cells.length > 1 ? cells : [cleaned];
+  const inferred = inferVolunteerFromCells(row, fallbackOrder);
+  if (inferred) return inferred;
+
+  const parts = cleaned
+    .replace(/[，,]/g, " ")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .filter(Boolean);
   let orderNo = Number.parseInt(parts[0], 10);
   if (Number.isFinite(orderNo)) {
     parts.shift();
@@ -340,22 +546,41 @@ function parseVolunteerLine(line, fallbackOrder) {
     orderNo = fallbackOrder;
   }
 
-  const batchIndex = parts.findIndex((part) => /本科|专科/.test(part));
-  const batch = batchIndex >= 0 ? parts[batchIndex] : "";
+  const batchIndex = parts.findIndex((part) => batchPattern.test(part));
+  const batch = batchIndex >= 0 ? extractBatchFromCells([parts[batchIndex]]) : "本科批";
   const usefulParts = batchIndex >= 0 ? parts.slice(0, batchIndex) : parts;
 
   if (usefulParts.length < 2) return null;
 
+  const schoolName = cleanSchoolDisplay(usefulParts[0]);
+  const majorName = cleanMajorDisplay(usefulParts.slice(1).join(" "));
+  if (!schoolName || !majorName) return null;
+
   return {
     orderNo,
-    schoolName: usefulParts[0],
-    majorName: usefulParts.slice(1).join(""),
-    batch: batch || "本科批"
+    schoolName,
+    majorName,
+    batch,
+    matchSchoolName: schoolName,
+    matchMajorName: simplifyMajorForMatch(majorName)
   };
 }
 
 function parseVolunteers(text) {
-  const rows = String(text || "")
+  const rawText = String(text || "");
+  const tableRows = textToVolunteerRows(rawText);
+  if (tableRows.length > 1 && (findHeaderIndex(tableRows) >= 0 || tableRows.some((row) => row.length >= 4))) {
+    const normalizedText = rowsToVolunteerText(tableRows);
+    if (normalizedText) {
+      return normalizedText
+        .split(/\r?\n/)
+        .map((line, index) => parseVolunteerLine(line, index + 1))
+        .filter(Boolean)
+        .slice(0, 96);
+    }
+  }
+
+  const rows = rawText
     .split(/\r?\n/)
     .map((line, index) => parseVolunteerLine(line, index + 1))
     .filter(Boolean);
@@ -952,40 +1177,101 @@ function downloadTemplate() {
 
 function findHeaderIndex(rows) {
   return rows.findIndex((row) => {
-    const text = row.map((cell) => String(cell || "")).join(" ");
-    return /学校|院校/.test(text) && /专业/.test(text);
+    const text = row.map(normalizeCellText).join(" ");
+    return /学校|院校|招生单位/.test(text) && /专业|专业类|专业\(类\)/.test(text);
   });
 }
 
-function findColumnIndex(headers, patterns) {
-  return headers.findIndex((header) => patterns.some((pattern) => pattern.test(String(header || ""))));
+function findColumnIndex(headers, includePatterns, excludePatterns = []) {
+  let best = -1;
+  let bestScore = 0;
+  headers.forEach((header, index) => {
+    const text = normalizeCellText(header);
+    if (!text || excludePatterns.some((pattern) => pattern.test(text))) return;
+    const score = includePatterns.reduce((sum, pattern) => sum + (pattern.test(text) ? 1 : 0), 0);
+    if (score > bestScore) {
+      best = index;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
+function volunteerToTextLine(record) {
+  if (!record?.schoolName || !record?.majorName) return "";
+  return [record.orderNo, record.schoolName, record.majorName, record.batch || "本科批"].filter(Boolean).join(" ");
+}
+
+function splitDelimitedTextLine(line) {
+  const text = normalizeCellText(line);
+  if (!text) return [];
+  if (text.includes("\t")) return text.split("\t").map(normalizeCellText);
+  const delimiter = text.includes(",") ? "," : text.includes("，") ? "，" : "";
+  if (!delimiter) return [text];
+
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (const char of text) {
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === delimiter && !quoted) {
+      cells.push(normalizeCellText(current));
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(normalizeCellText(current));
+  return cells;
+}
+
+function textToVolunteerRows(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map(splitDelimitedTextLine)
+    .filter((row) => row.some(Boolean));
 }
 
 function rowsToVolunteerText(rows) {
   const cleanedRows = rows
-    .map((row) => row.map((cell) => String(cell ?? "").trim()))
+    .map((row) => row.map(normalizeCellText))
     .filter((row) => row.some(Boolean));
   if (!cleanedRows.length) return "";
 
   const headerIndex = findHeaderIndex(cleanedRows);
   if (headerIndex >= 0) {
     const headers = cleanedRows[headerIndex];
-    const orderIndex = findColumnIndex(headers, [/序号/, /^志愿$/, /志愿序/]);
-    const schoolIndex = findColumnIndex(headers, [/学校名称/, /院校名称/, /院校/]);
-    const majorIndex = findColumnIndex(headers, [/专业名称/, /专业/]);
-    const batchIndex = findColumnIndex(headers, [/批次/]);
-    const subjectIndex = findColumnIndex(headers, [/科目组合/, /选科/, /科类/]);
+    const orderIndex = findColumnIndex(headers, [/志愿序号/, /志愿号/, /^序号$/, /^志愿$/, /志愿序/, /顺序/, /排序/]);
+    const schoolIndex = findColumnIndex(
+      headers,
+      [/学校名称/, /院校名称/, /招生院校/, /^院校$/, /^学校$/, /招生单位/],
+      [/代码/, /代号/, /编号/, /专业组/]
+    );
+    const majorIndex = findColumnIndex(
+      headers,
+      [/专业名称/, /招生专业/, /专业\(类\)/, /专业类/, /^专业$/],
+      [/代码/, /代号/, /编号/, /组选科/, /组代码/]
+    );
+    const batchIndex = findColumnIndex(headers, [/批次/, /录取批次/, /层次/]);
 
     if (schoolIndex >= 0 && majorIndex >= 0) {
       return cleanedRows
         .slice(headerIndex + 1)
         .map((row, index) => {
-          const order = row[orderIndex] || String(index + 1);
-          const school = row[schoolIndex] || "";
-          const major = row[majorIndex] || "";
-          const batch = row[batchIndex] || "本科批";
-          const subject = row[subjectIndex] || "";
-          return [order, school, major, batch, subject].filter(Boolean).join(" ");
+          const directRecord = {
+            orderNo: parseOrderNoFromCells([row[orderIndex]], index + 1),
+            schoolName: cleanSchoolDisplay(row[schoolIndex]),
+            majorName: cleanMajorDisplay(row[majorIndex]),
+            batch: extractBatchFromCells([row[batchIndex]], "本科批")
+          };
+          const record =
+            directRecord.schoolName && directRecord.majorName
+              ? directRecord
+              : inferVolunteerFromCells(row, index + 1);
+          return volunteerToTextLine(record);
         })
         .filter((line) => /[\u4e00-\u9fa5]/.test(line))
         .slice(0, 96)
@@ -995,9 +1281,12 @@ function rowsToVolunteerText(rows) {
 
   return cleanedRows
     .map((row, index) => {
+      const record = inferVolunteerFromCells(row, index + 1);
+      if (record) return volunteerToTextLine(record);
       const hasOrder = /^\d+$/.test(row[0] || "");
       return [hasOrder ? "" : String(index + 1), ...row.slice(0, 8)].filter(Boolean).join(" ");
     })
+    .map((line, index) => volunteerToTextLine(parseVolunteerLine(line, index + 1)))
     .filter((line) => /[\u4e00-\u9fa5]/.test(line))
     .slice(0, 96)
     .join("\n");
@@ -1042,7 +1331,7 @@ function initFileUpload() {
       const reader = new FileReader();
       reader.addEventListener("load", () => {
         textarea.value = String(reader.result || "");
-        status.textContent = `已解析：${file.name}。请确认下方志愿表内容后生成报告。`;
+        status.textContent = `已解析：${file.name}，识别到${parseVolunteers(textarea.value).length}条志愿。请确认下方内容后生成报告。`;
       });
       reader.readAsText(file, "utf-8");
     } else if (/\.(xlsx|xls)$/i.test(file.name)) {
