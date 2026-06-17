@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260617-xunlu-brand" />
+    <meta name="app-version" content="20260617-ui-refresh" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260617-xunlu-brand" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-ui-refresh" />
   </head>
   <body>
     <header class="site-header">
@@ -44,6 +44,7 @@
         <div class="hero-wave" aria-hidden="true"></div>
         <div class="hero-inner">
           <div class="hero-copy">
+            <span class="hero-kicker"><i data-lucide="shield-check" aria-hidden="true"></i> 基于河北新高考规则与公开投档数据</span>
             <h1 id="hero-title">河北新高考<br /><span>志愿风险评估系统</span></h1>
             <p>
               基于公开投档数据与可解释风险模型，帮你把96个志愿逐条做风险诊断、调顺序、找问题、留证据。
@@ -377,6 +378,11 @@
           <span class="eyebrow">在线体检</span>
           <h2 id="checkup-title">先生成预览，再决定是否购买完整报告</h2>
           <p>输入考生位次与志愿表，系统会优先匹配已收录的河北公开投档记录，给出整表风险和逐条调整建议。</p>
+        </div>
+        <div class="checkup-steps" aria-label="在线评估流程">
+          <article class="is-active"><span>1</span><strong>填写信息</strong><small>完善考生与志愿信息</small></article>
+          <article><span>2</span><strong>导入志愿</strong><small>上传或录入志愿表</small></article>
+          <article><span>3</span><strong>生成预览</strong><small>查看风险结果与建议</small></article>
         </div>
 
         <div class="checkup-grid">
@@ -800,6 +806,7 @@
       <section class="pricing-section app-view" data-view="pricing" id="pricing" aria-labelledby="pricing-title">
         <div class="section-heading compact-heading">
           <h2 id="pricing-title">价格方案</h2>
+          <p>数据来源权威可靠，更新及时，安全合规。以下价格沿用当前线上定价。</p>
         </div>
         <div class="pricing-grid">
           <article class="price-card">
@@ -1061,6 +1068,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260617-xunlu-brand"></script>
+    <script src="./app.js?v=20260617-ui-refresh"></script>
   </body>
 </html>
