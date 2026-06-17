@@ -1315,6 +1315,215 @@ function parseWorkbookFile(file, onSuccess, onError) {
   reader.readAsArrayBuffer(file);
 }
 
+const volunteerBatchOptions = ["本科批", "本科提前批", "专科批"];
+
+function getVolunteerTableElements() {
+  return {
+    editor: document.querySelector("#volunteerTableEditor"),
+    body: document.querySelector("#volunteerTableBody"),
+    textarea: document.querySelector("#volunteers"),
+    status: document.querySelector("#volunteerTableStatus")
+  };
+}
+
+function toVolunteerEditorRow(record = {}) {
+  return {
+    batch: record.batch || "本科批",
+    schoolName: record.schoolName || "",
+    majorName: record.majorName || ""
+  };
+}
+
+function normalizeVolunteerEditorRows(rows) {
+  const normalized = (Array.isArray(rows) ? rows : [])
+    .map(toVolunteerEditorRow)
+    .slice(0, 96);
+  return normalized.length ? normalized : [toVolunteerEditorRow()];
+}
+
+function renderVolunteerBatchOptions(selectedBatch) {
+  return volunteerBatchOptions
+    .map((option) => {
+      const selected = option === selectedBatch ? " selected" : "";
+      return `<option value="${escapeHTML(option)}"${selected}>${escapeHTML(option)}</option>`;
+    })
+    .join("");
+}
+
+function renderVolunteerEditorRow(row, index) {
+  const orderNo = index + 1;
+  return `
+    <tr data-volunteer-row>
+      <td data-label="序号">
+        <span class="volunteer-order" data-volunteer-order>${orderNo}</span>
+      </td>
+      <td data-label="批次">
+        <select data-volunteer-field="batch" aria-label="第${orderNo}志愿批次">
+          ${renderVolunteerBatchOptions(row.batch)}
+        </select>
+      </td>
+      <td data-label="院校名称">
+        <input data-volunteer-field="schoolName" value="${escapeHTML(row.schoolName)}" placeholder="如：河北大学" aria-label="第${orderNo}志愿院校名称" />
+      </td>
+      <td data-label="专业名称">
+        <input data-volunteer-field="majorName" value="${escapeHTML(row.majorName)}" placeholder="如：法学" aria-label="第${orderNo}志愿专业名称" />
+      </td>
+      <td class="volunteer-row-actions" data-label="操作">
+        <button class="row-action-button" type="button" data-volunteer-move="-1" title="上调位置" aria-label="上调第${orderNo}志愿">
+          <i data-lucide="arrow-up" aria-hidden="true"></i><span>上调</span>
+        </button>
+        <button class="row-action-button" type="button" data-volunteer-move="1" title="下调位置" aria-label="下调第${orderNo}志愿">
+          <i data-lucide="arrow-down" aria-hidden="true"></i><span>下调</span>
+        </button>
+        <button class="row-action-button danger" type="button" data-volunteer-remove title="删除本行" aria-label="删除第${orderNo}志愿">
+          <i data-lucide="trash-2" aria-hidden="true"></i><span>删除</span>
+        </button>
+      </td>
+    </tr>`;
+}
+
+function renumberVolunteerTableRows() {
+  const { body } = getVolunteerTableElements();
+  if (!body) return;
+  const rows = Array.from(body.querySelectorAll("[data-volunteer-row]"));
+  rows.forEach((row, index) => {
+    const orderNo = index + 1;
+    const order = row.querySelector("[data-volunteer-order]");
+    if (order) order.textContent = String(orderNo);
+    const school = row.querySelector('[data-volunteer-field="schoolName"]');
+    const major = row.querySelector('[data-volunteer-field="majorName"]');
+    const batch = row.querySelector('[data-volunteer-field="batch"]');
+    if (school) school.setAttribute("aria-label", `第${orderNo}志愿院校名称`);
+    if (major) major.setAttribute("aria-label", `第${orderNo}志愿专业名称`);
+    if (batch) batch.setAttribute("aria-label", `第${orderNo}志愿批次`);
+
+    const moveUp = row.querySelector('[data-volunteer-move="-1"]');
+    const moveDown = row.querySelector('[data-volunteer-move="1"]');
+    if (moveUp) {
+      moveUp.disabled = index === 0;
+      moveUp.setAttribute("aria-label", `上调第${orderNo}志愿`);
+    }
+    if (moveDown) {
+      moveDown.disabled = index === rows.length - 1;
+      moveDown.setAttribute("aria-label", `下调第${orderNo}志愿`);
+    }
+    row.querySelector("[data-volunteer-remove]")?.setAttribute("aria-label", `删除第${orderNo}志愿`);
+  });
+}
+
+function readVolunteerRowsFromTable({ completeOnly = false } = {}) {
+  const { body } = getVolunteerTableElements();
+  if (!body) return [];
+  const rows = Array.from(body.querySelectorAll("[data-volunteer-row]")).map((row, index) => ({
+    orderNo: index + 1,
+    batch: row.querySelector('[data-volunteer-field="batch"]')?.value || "本科批",
+    schoolName: normalizeCellText(row.querySelector('[data-volunteer-field="schoolName"]')?.value || ""),
+    majorName: normalizeCellText(row.querySelector('[data-volunteer-field="majorName"]')?.value || "")
+  }));
+  if (!completeOnly) return rows;
+  return rows.filter((row) => row.schoolName && row.majorName);
+}
+
+function updateVolunteerTableStatus(summary = {}) {
+  const { status } = getVolunteerTableElements();
+  if (!status) return;
+  const rows = readVolunteerRowsFromTable();
+  const completeCount = summary.completeCount ?? rows.filter((row) => row.schoolName && row.majorName).length;
+  const partialCount = rows.filter((row) => (row.schoolName || row.majorName) && !(row.schoolName && row.majorName)).length;
+  const totalRows = rows.length;
+  const warning = partialCount ? `，${partialCount}行缺少院校或专业，提交时会暂不计入` : "";
+  status.textContent = `当前表格共${totalRows}行，已识别${completeCount}条完整志愿${warning}；最多支持96条。`;
+}
+
+function syncVolunteerTextareaFromTable() {
+  const { textarea } = getVolunteerTableElements();
+  if (!textarea) return { completeCount: 0 };
+  renumberVolunteerTableRows();
+  const completeRows = readVolunteerRowsFromTable({ completeOnly: true }).slice(0, 96);
+  textarea.value = completeRows.map((row, index) => volunteerToTextLine({ ...row, orderNo: index + 1 })).join("\n");
+  const summary = { completeCount: completeRows.length };
+  updateVolunteerTableStatus(summary);
+  return summary;
+}
+
+function renderVolunteerTableRows(rows) {
+  const { body } = getVolunteerTableElements();
+  if (!body) return 0;
+  const normalizedRows = normalizeVolunteerEditorRows(rows);
+  body.innerHTML = normalizedRows.map(renderVolunteerEditorRow).join("");
+  createIcons();
+  return syncVolunteerTextareaFromTable().completeCount;
+}
+
+function renderVolunteerTableFromText(text) {
+  const parsedRows = parseVolunteers(text).map(toVolunteerEditorRow);
+  return renderVolunteerTableRows(parsedRows);
+}
+
+function focusVolunteerRow(row, field = "schoolName") {
+  row?.querySelector(`[data-volunteer-field="${field}"]`)?.focus({ preventScroll: true });
+}
+
+function initVolunteerTableEditor() {
+  const { body, textarea, editor } = getVolunteerTableElements();
+  if (!body || !textarea || !editor) return;
+
+  renderVolunteerTableFromText(textarea.value || sampleVolunteerText);
+
+  body.addEventListener("input", () => {
+    syncVolunteerTextareaFromTable();
+  });
+
+  body.addEventListener("change", () => {
+    syncVolunteerTextareaFromTable();
+  });
+
+  body.addEventListener("click", (event) => {
+    const moveButton = event.target.closest("[data-volunteer-move]");
+    const removeButton = event.target.closest("[data-volunteer-remove]");
+
+    if (moveButton) {
+      const row = moveButton.closest("[data-volunteer-row]");
+      const direction = Number(moveButton.dataset.volunteerMove);
+      if (direction < 0 && row?.previousElementSibling) {
+        body.insertBefore(row, row.previousElementSibling);
+      }
+      if (direction > 0 && row?.nextElementSibling) {
+        body.insertBefore(row.nextElementSibling, row);
+      }
+      syncVolunteerTextareaFromTable();
+      focusVolunteerRow(row, "schoolName");
+      return;
+    }
+
+    if (removeButton) {
+      const row = removeButton.closest("[data-volunteer-row]");
+      if (body.querySelectorAll("[data-volunteer-row]").length <= 1) {
+        renderVolunteerTableRows([toVolunteerEditorRow()]);
+      } else {
+        row?.remove();
+        syncVolunteerTextareaFromTable();
+      }
+    }
+  });
+
+  document.querySelector("[data-volunteer-add]")?.addEventListener("click", () => {
+    const rows = readVolunteerRowsFromTable();
+    if (rows.length >= 96) {
+      toast("最多支持96条志愿");
+      return;
+    }
+    renderVolunteerTableRows([...rows, toVolunteerEditorRow()]);
+    const lastRow = body.querySelector("[data-volunteer-row]:last-child");
+    focusVolunteerRow(lastRow, "schoolName");
+  });
+
+  document.querySelector("[data-volunteer-renumber]")?.addEventListener("click", () => {
+    syncVolunteerTextareaFromTable();
+    toast("已按当前表格顺序重新编号");
+  });
+}
+
 function initFileUpload() {
   const input = document.querySelector("#volunteerFile");
   const status = document.querySelector("#fileStatus");
@@ -1330,8 +1539,10 @@ function initFileUpload() {
     if (/\.(csv|txt)$/i.test(file.name)) {
       const reader = new FileReader();
       reader.addEventListener("load", () => {
-        textarea.value = String(reader.result || "");
-        status.textContent = `已解析：${file.name}，识别到${parseVolunteers(textarea.value).length}条志愿。请确认下方内容后生成报告。`;
+        const text = String(reader.result || "");
+        textarea.value = text;
+        const count = renderVolunteerTableFromText(text);
+        status.textContent = `已解析：${file.name}，识别到${count}条志愿。请在下方表格确认顺序后生成报告。`;
       });
       reader.readAsText(file, "utf-8");
     } else if (/\.(xlsx|xls)$/i.test(file.name)) {
@@ -1340,14 +1551,15 @@ function initFileUpload() {
         file,
         (text, sheetName) => {
           textarea.value = text;
-          status.textContent = `已解析：${file.name} / ${sheetName}，识别到${parseVolunteers(text).length}条志愿。`;
+          const count = renderVolunteerTableFromText(text);
+          status.textContent = `已解析：${file.name} / ${sheetName}，识别到${count}条志愿。请在下方表格继续上调、下调或补充信息。`;
         },
         (error) => {
-          status.textContent = `${error.message}。可以复制表格内容粘贴到下方继续生成预览。`;
+          status.textContent = `${error.message}。可以重新上传 Excel/CSV，或点击“在线录入志愿”逐行填写。`;
         }
       );
     } else {
-      status.textContent = `已选择：${file.name}。当前支持 Excel、CSV、TXT，其他格式请复制表格内容粘贴到下方。`;
+      status.textContent = `已选择：${file.name}。当前支持 Excel、CSV、TXT，其他格式请转为表格文件或在线录入。`;
     }
   });
 }
@@ -1359,6 +1571,7 @@ function initInteractions() {
   if (volunteerTextarea && !volunteerTextarea.value.trim()) {
     volunteerTextarea.value = sampleVolunteerText;
   }
+  initVolunteerTableEditor();
 
   const form = document.querySelector("#riskForm");
   const licenseAdminForm = document.querySelector("#licenseAdminForm");
@@ -1376,6 +1589,7 @@ function initInteractions() {
       submit.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 正在匹配公开数据';
       createIcons();
     }
+    syncVolunteerTextareaFromTable();
     const data = getFormData(form);
     try {
       await renderReport(data);
@@ -1399,9 +1613,9 @@ function initInteractions() {
 
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-volunteer-focus]")) {
-      const volunteers = document.querySelector("#volunteers");
-      volunteers?.scrollIntoView({ behavior: "smooth", block: "center" });
-      volunteers?.focus({ preventScroll: true });
+      const editor = document.querySelector("#volunteerTableEditor");
+      editor?.scrollIntoView({ behavior: "smooth", block: "center" });
+      editor?.querySelector('[data-volunteer-field="schoolName"]')?.focus({ preventScroll: true });
       return;
     }
 

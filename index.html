@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260617-tight-ui" />
+    <meta name="app-version" content="20260617-volunteer-table" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260617-tight-ui" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-volunteer-table" />
   </head>
   <body>
     <header class="site-header">
@@ -506,10 +506,39 @@
               </div>
             </div>
             <input class="sr-only" id="volunteerFile" name="volunteerFile" type="file" accept=".xlsx,.xls,.csv,.txt" />
-            <div class="form-row">
-              <label for="volunteers">志愿表内容</label>
-              <textarea id="volunteers" name="volunteers" rows="8" placeholder="每行一个志愿：序号 学校名称 专业名称 批次"></textarea>
-              <small class="field-help">示例：1 河北大学 法学 本科批。也支持带院校代码、专业代码、专业组、学费、校区、备注等列的非模板表格。</small>
+            <div class="volunteer-table-editor" id="volunteerTableEditor">
+              <div class="volunteer-table-toolbar">
+                <div>
+                  <label id="volunteerTableLabel">在线录入志愿表</label>
+                  <small>按提交顺序逐行录入，支持上传后继续调整；上调/下调会自动重排序号。</small>
+                </div>
+                <div class="volunteer-table-actions">
+                  <button class="outline-button mini-action" type="button" data-volunteer-add>
+                    <i data-lucide="plus" aria-hidden="true"></i>
+                    添加一行
+                  </button>
+                  <button class="ghost-button mini-action" type="button" data-volunteer-renumber>
+                    <i data-lucide="list-ordered" aria-hidden="true"></i>
+                    重新编号
+                  </button>
+                </div>
+              </div>
+              <div class="volunteer-table-scroll" role="group" aria-labelledby="volunteerTableLabel">
+                <table class="volunteer-entry-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">序号</th>
+                      <th scope="col">批次</th>
+                      <th scope="col">院校名称</th>
+                      <th scope="col">专业名称</th>
+                      <th scope="col">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="volunteerTableBody"></tbody>
+                </table>
+              </div>
+              <small class="field-help" id="volunteerTableStatus">已预置示例志愿，可直接修改或上传 Excel 后整理顺序。</small>
+              <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
             </div>
             <div class="license-panel">
               <div class="form-section-title">
@@ -1158,6 +1187,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260617-tight-ui"></script>
+    <script src="./app.js?v=20260617-volunteer-table"></script>
   </body>
 </html>
