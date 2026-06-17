@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260617-volunteer-table" />
+    <meta name="app-version" content="20260617-flow-pdf" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260617-volunteer-table" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-flow-pdf" />
   </head>
   <body>
     <header class="site-header">
@@ -27,6 +27,7 @@
         <a href="#/home" data-nav-view="home"><i data-lucide="home" aria-hidden="true"></i>首页</a>
         <a href="#/product" data-nav-view="product"><i data-lucide="panel-top" aria-hidden="true"></i>产品介绍</a>
         <a href="#/checkup" data-nav-view="checkup"><i data-lucide="activity" aria-hidden="true"></i>在线评估</a>
+        <a href="#/volunteers" data-nav-view="volunteers"><i data-lucide="table-2" aria-hidden="true"></i>志愿表</a>
         <a href="#/sample" data-nav-view="sample"><i data-lucide="file-text" aria-hidden="true"></i>报告样例</a>
         <a href="#/pricing" data-nav-view="pricing"><i data-lucide="wallet" aria-hidden="true"></i>服务方案</a>
       </nav>
@@ -391,15 +392,15 @@
         <div class="section-heading">
           <span class="eyebrow">在线体检</span>
           <h2 id="checkup-title">先生成预览，再决定是否购买完整报告</h2>
-          <p>输入考生位次与志愿表，系统会优先匹配已收录的河北公开投档记录，给出整表风险和逐条调整建议。</p>
+          <p>先录入考生基础信息，再从独立志愿表页面导入或调整96个志愿，最后生成可复核、可导出的风险报告。</p>
         </div>
         <div class="checkup-steps" aria-label="在线评估流程">
           <article class="is-active"><span>1</span><strong>填写信息</strong><small>完善考生与志愿信息</small></article>
-          <article><span>2</span><strong>导入志愿</strong><small>上传或录入志愿表</small></article>
+          <article><span>2</span><strong>整理志愿</strong><small>在志愿表页面维护顺序</small></article>
           <article><span>3</span><strong>生成预览</strong><small>查看风险结果与建议</small></article>
         </div>
 
-        <div class="checkup-grid">
+        <div class="checkup-grid checkup-flow">
           <form class="checkup-form" id="riskForm">
             <div class="form-card">
             <div class="form-section-title">
@@ -450,6 +451,11 @@
               <label for="electives">选考科目</label>
               <input id="electives" name="electives" placeholder="例如：物理、化学、生物" />
             </div>
+            <div class="form-row">
+              <label for="regionPreference">地域偏好</label>
+              <input id="regionPreference" name="regionPreference" placeholder="如：优先石家庄/天津/北京，可接受省外，不接受太远城市" />
+              <small class="field-help">用于判断保底院校、城市接受度和调剂可执行性；没有明确偏好可填“不限”。</small>
+            </div>
             <div class="form-row two">
               <div>
                 <label for="restriction">体检限制</label>
@@ -482,11 +488,89 @@
             </div>
             </div>
 
-            <div class="form-card volunteer-card">
+            <div class="form-card volunteer-summary-card">
+              <div class="form-section-title">
+                <i data-lucide="table-2" aria-hidden="true"></i>
+                <strong>志愿表状态</strong>
+                <span>独立页面维护，避免评估页过于臃肿</span>
+              </div>
+              <div class="volunteer-summary-box">
+                <div>
+                  <span>已识别完整志愿</span>
+                  <strong><b id="volunteerSummaryCount">0</b><small>/96</small></strong>
+                  <p id="volunteerSummaryDetail">可上传 Excel/CSV，也可逐行录入并上调、下调顺序。</p>
+                </div>
+                <a class="outline-button" href="#/volunteers" data-volunteer-focus>
+                  <i data-lucide="table-2" aria-hidden="true"></i>
+                  打开志愿表页面
+                </a>
+              </div>
+              <small class="field-help" id="volunteerSummaryStatus">请先确认志愿表顺序，再生成风险预览。</small>
+            </div>
+
+            <div class="form-card license-panel">
+              <div class="form-section-title">
+                <i data-lucide="key-round" aria-hidden="true"></i>
+                <strong>完整报告授权码</strong>
+              </div>
+              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 DeepSeek 完整解读报告时才会扣减次数。</p>
+              <div class="license-input-row">
+                <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
+                <button class="outline-button" type="button" data-license-check>
+                  <i data-lucide="key-round" aria-hidden="true"></i>
+                  验证授权码
+                </button>
+              </div>
+              <small class="license-status" id="licenseStatus" data-tone="muted">支持单次报告码、三次复查码和填报季卡；完整报告生成成功后才扣次数。</small>
+            </div>
+            <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
+            <button class="solid-button form-submit" type="submit">
+              <i data-lucide="activity" aria-hidden="true"></i>
+              生成逐条风险预览
+            </button>
+          </form>
+
+          <aside class="live-report" id="liveReport" aria-live="polite">
+            <div class="advisor-panel">
+              <section>
+                <h3><i data-lucide="lightbulb" aria-hidden="true"></i> 填写建议</h3>
+                <ul>
+                  <li>信息越完整，预览结果越准确。</li>
+                  <li>志愿表顺序在独立页面维护，提交前请先确认冲稳保梯度。</li>
+                </ul>
+              </section>
+              <section>
+                <h3><i data-lucide="shield-check" aria-hidden="true"></i> 完整报告包含什么</h3>
+                <ul class="check-list">
+                  <li>多维风险评估与诊断</li>
+                  <li>院校/专业留档方案推荐</li>
+                  <li>冲稳保优化建议与调整</li>
+                  <li>个性化填报策略与跟踪</li>
+                  <li>分数/位次波动影响测算</li>
+                  <li>风险预览支持打印/导出 PDF</li>
+                </ul>
+              </section>
+              <section>
+                <h3><i data-lucide="lock-keyhole" aria-hidden="true"></i> 隐私与安全</h3>
+                <p>您的信息仅用于评估分析，不会用于任何商业用途。</p>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="volunteer-workspace-section app-view" data-view="volunteers" id="volunteers-page" aria-labelledby="volunteers-title">
+        <div class="section-heading">
+          <span class="eyebrow">志愿表工作台</span>
+          <h2 id="volunteers-title">单独整理志愿表，避免在线评估页过于臃肿</h2>
+          <p>支持 Excel/CSV 上传和在线表格录入。系统会按当前表格顺序生成评估 payload，上调/下调会同步重排序号。</p>
+        </div>
+        <div class="volunteer-workspace-grid">
+          <div class="form-card volunteer-card">
             <div class="form-section-title">
               <i data-lucide="table-2" aria-hidden="true"></i>
               <strong>志愿表上传 / 录入</strong>
-              <span>支持 Excel 文件上传或在线录入志愿</span>
+              <span>最多96条，按专业（类）+学校逐条维护</span>
             </div>
             <div class="volunteer-import-row">
               <label class="upload-box" for="volunteerFile">
@@ -505,7 +589,7 @@
                 </button>
               </div>
             </div>
-            <input class="sr-only" id="volunteerFile" name="volunteerFile" type="file" accept=".xlsx,.xls,.csv,.txt" />
+            <input class="sr-only" id="volunteerFile" type="file" accept=".xlsx,.xls,.csv,.txt" />
             <div class="volunteer-table-editor" id="volunteerTableEditor">
               <div class="volunteer-table-toolbar">
                 <div>
@@ -538,55 +622,33 @@
                 </table>
               </div>
               <small class="field-help" id="volunteerTableStatus">已预置示例志愿，可直接修改或上传 Excel 后整理顺序。</small>
-              <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
             </div>
-            <div class="license-panel">
-              <div class="form-section-title">
-                <i data-lucide="key-round" aria-hidden="true"></i>
-                <strong>完整报告授权码</strong>
-              </div>
-              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 DeepSeek 完整解读报告时才会扣减次数。</p>
-              <div class="license-input-row">
-                <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
-                <button class="outline-button" type="button" data-license-check>
-                  <i data-lucide="key-round" aria-hidden="true"></i>
-                  验证授权码
-                </button>
-              </div>
-              <small class="license-status" id="licenseStatus" data-tone="muted">支持单次报告码、三次复查码和填报季卡；完整报告生成成功后才扣次数。</small>
+            <div class="volunteer-page-actions">
+              <a class="solid-button" href="#/checkup">
+                <i data-lucide="activity" aria-hidden="true"></i>
+                返回在线评估生成报告
+              </a>
+              <a class="outline-button" href="#/sample">查看报告样例</a>
             </div>
-            </div>
-            <button class="solid-button form-submit" type="submit">
-              <i data-lucide="activity" aria-hidden="true"></i>
-              生成逐条风险预览
-            </button>
-          </form>
-
-          <aside class="live-report" id="liveReport" aria-live="polite">
-            <div class="advisor-panel">
-              <section>
-                <h3><i data-lucide="lightbulb" aria-hidden="true"></i> 填写建议</h3>
-                <ul>
-                  <li>信息越完整，预览结果越准确。</li>
-                  <li>带 * 为必填项，建议如实填写。</li>
-                </ul>
-              </section>
-              <section>
-                <h3><i data-lucide="shield-check" aria-hidden="true"></i> 完整报告包含什么</h3>
-                <ul class="check-list">
-                  <li>多维风险评估与诊断</li>
-                  <li>院校/专业留档方案推荐</li>
-                  <li>冲稳保优化建议与调整</li>
-                  <li>个性化填报策略与跟踪</li>
-                  <li>分数/位次波动影响测算</li>
-                  <li>可导出完整报告</li>
-                </ul>
-              </section>
-              <section>
-                <h3><i data-lucide="lock-keyhole" aria-hidden="true"></i> 隐私与安全</h3>
-                <p>您的信息仅用于评估分析，不会用于任何商业用途。</p>
-              </section>
-            </div>
+          </div>
+          <aside class="volunteer-guide-panel">
+            <section>
+              <h3><i data-lucide="layers-3" aria-hidden="true"></i> 科学分配逻辑</h3>
+              <p>平行志愿不是简单平均分配。应以位次为主线，结合近年波动、专业热度、地域偏好和家庭风险承受度，形成冲、稳、保、垫的梯度。</p>
+            </section>
+            <section>
+              <h3><i data-lucide="shield-alert" aria-hidden="true"></i> 数据不足时</h3>
+              <p>系统会尝试学校别名、专业简称、批次放宽和更早年份记录；仍未命中时会标记为“需人工复核”，不会包装成确定结论。</p>
+            </section>
+            <section>
+              <h3><i data-lucide="check-check" aria-hidden="true"></i> 提交前检查</h3>
+              <ul class="check-list">
+                <li>顺序是否符合真实优先级</li>
+                <li>是否有足够稳妥与保底志愿</li>
+                <li>地域、学费、体检、选科限制是否可接受</li>
+                <li>专业名称是否与招生计划一致</li>
+              </ul>
+            </section>
           </aside>
         </div>
       </section>
@@ -1187,6 +1249,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260617-volunteer-table"></script>
+    <script src="./app.js?v=20260617-flow-pdf"></script>
   </body>
 </html>

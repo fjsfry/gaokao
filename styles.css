@@ -5548,3 +5548,242 @@ textarea {
     padding: 0 6px;
   }
 }
+
+/* 20260617 product flow, volunteer workspace, and PDF export */
+.checkup-flow {
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.checkup-flow .checkup-form,
+.checkup-flow .live-report {
+  max-width: 1120px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.checkup-flow .live-report {
+  min-height: auto;
+}
+
+.volunteer-summary-card {
+  display: grid;
+  gap: 16px;
+}
+
+.volunteer-summary-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #dbeae8;
+  border-radius: 18px;
+  background: #f7fcfb;
+}
+
+.volunteer-summary-box span {
+  display: block;
+  color: #587082;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.volunteer-summary-box strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.volunteer-summary-box strong b {
+  color: var(--teal);
+  font: inherit;
+}
+
+.volunteer-summary-box strong small {
+  color: #6c7e8c;
+  font-size: 16px;
+}
+
+.volunteer-summary-box p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.volunteer-workspace-section {
+  min-height: calc(100vh - var(--header-height));
+  padding: 52px var(--shell-pad) 72px;
+  background: linear-gradient(180deg, #f6fbfa, #ffffff);
+}
+
+.volunteer-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.36fr);
+  gap: 24px;
+  max-width: 1350px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.volunteer-workspace-grid .volunteer-card,
+.volunteer-guide-panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.volunteer-workspace-grid .volunteer-card {
+  padding: 24px;
+}
+
+.volunteer-guide-panel {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  position: sticky;
+  top: calc(var(--header-height) + 18px);
+}
+
+.volunteer-guide-panel section {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e5efee;
+}
+
+.volunteer-guide-panel section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.volunteer-guide-panel h3 {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.volunteer-guide-panel h3 svg {
+  width: 20px;
+  height: 20px;
+  color: var(--teal);
+}
+
+.volunteer-guide-panel p,
+.volunteer-guide-panel li {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.volunteer-page-actions,
+.ai-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.ai-report-actions {
+  justify-content: flex-end;
+}
+
+body.print-report-mode .site-header,
+body.print-report-mode .checkup-form,
+body.print-report-mode .checkup-steps,
+body.print-report-mode .section-heading,
+body.print-report-mode .mobile-cta,
+body.print-report-mode .site-footer,
+body.print-report-mode .next-actions,
+body.print-report-mode .ai-report-actions,
+body.print-report-mode .checkup-preview-section,
+body.print-report-mode .checkup-support-section,
+body.print-report-mode .volunteer-workspace-section {
+  display: none !important;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .site-header,
+  .checkup-form,
+  .checkup-steps,
+  .section-heading,
+  .mobile-cta,
+  .site-footer,
+  .next-actions,
+  .ai-report-actions,
+  .checkup-preview-section,
+  .checkup-support-section,
+  .volunteer-workspace-section {
+    display: none !important;
+  }
+
+  .app-view,
+  .checkup-section,
+  .checkup-grid,
+  .live-report {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: #fff !important;
+  }
+
+  .live-result,
+  .diagnosis-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
+
+@media (max-width: 1180px) {
+  .volunteer-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .volunteer-guide-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .main-nav {
+    justify-content: flex-start;
+  }
+
+  .main-nav a {
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .volunteer-summary-box {
+    grid-template-columns: 1fr;
+  }
+
+  .volunteer-workspace-section {
+    padding: 36px var(--shell-pad);
+  }
+
+  .volunteer-workspace-grid .volunteer-card,
+  .volunteer-guide-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+}

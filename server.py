@@ -14,6 +14,7 @@ import json
 import os
 import re
 import secrets
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -552,6 +553,28 @@ def major_query_candidates(value: Any) -> list[str]:
     return candidates[:3]
 
 
+def school_query_candidates(value: Any) -> list[str]:
+    raw = clean_search_term(value)
+    suffix_pattern = (
+        r".*?(?:高等专科学校|职业技术大学|职业技术学院|职业学院|专科学校|医学院|警官学院|"
+        r"师范学院|财经学院|理工学院|科技学院|工程学院|艺术学院|体育学院|政法学院|"
+        r"外国语学院|大学|学院|学校)"
+    )
+    candidates: list[str] = []
+    for candidate in [
+        raw,
+        re.sub(r"(?:主校区|[一-龥A-Za-z0-9]+校区|中外合作办学|校企合作|公办|民办|独立学院).*$", "", raw),
+        re.sub(r"(?:学院|大学)\([^)]*\)$", lambda match: match.group(0).split("(")[0], raw),
+    ]:
+        candidate = clean_search_term(candidate, max_len=32)
+        match = re.search(suffix_pattern, candidate)
+        if match:
+            candidate = match.group(0)
+        if candidate and candidate not in candidates and len(candidate) >= 4:
+            candidates.append(candidate)
+    return candidates[:3] or ([raw] if raw else [])
+
+
 def parse_int(value: Any, fallback: int = 0) -> int:
     try:
         return int(float(str(value).strip()))
@@ -663,6 +686,7 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
     admission_matches: dict[str, list[dict[str, Any]]] = {}
     year_floor = max(2021, data_year - 2)
     years_filter = ",".join(str(year) for year in range(year_floor, data_year + 1))
+    all_years_filter = ",".join(str(year) for year in range(2021, data_year + 1))
 
     def admission_params(
         school: str,
@@ -671,11 +695,12 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         fuzzy_school: bool = False,
         include_major: bool = True,
         exact_batch: bool = True,
+        years: str | None = None,
         limit: int = 18,
     ) -> dict[str, str]:
         params = {
             "select": "year,batch,subject_group,school_name,major_name,min_score,min_rank,source_url,confidence_level",
-            "year": f"in.({years_filter})",
+            "year": f"in.({years or years_filter})",
             "subject_group": f"eq.{subject}",
             "school_name": f"ilike.*{school}*" if fuzzy_school else f"eq.{school}",
             "order": "year.desc,min_rank.asc.nullslast,min_score.desc",
@@ -691,9 +716,9 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
             params["major_name"] = f"ilike.*{major}*"
         return params
 
-    def safe_admission_get(params: dict[str, str]) -> list[dict[str, Any]]:
+    def safe_admission_get(params: dict[str, str], timeout: int = 5) -> list[dict[str, Any]]:
         try:
-            return supabase_get("admission_line", params, timeout=8)
+            return supabase_get("admission_line", params, timeout=timeout)
         except requests.HTTPError as exc:
             if is_statement_timeout(exc):
                 return []
@@ -701,50 +726,98 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         except requests.RequestException:
             return []
 
-    for volunteer in volunteers[:96]:
+    def match_volunteer_admission(volunteer: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         order_no = str(volunteer.get("orderNo") or "")
         school = clean_search_term(volunteer.get("matchSchoolName") or volunteer.get("schoolName"))
+        school_candidates = school_query_candidates(volunteer.get("matchSchoolName") or volunteer.get("schoolName") or school)[:2]
         major = clean_search_term(volunteer.get("matchMajorName") or volunteer.get("majorName"))
-        major_candidates = major_query_candidates(major)
+        major_candidates = major_query_candidates(major)[:2]
         if not order_no or not school:
-            continue
+            return order_no, []
 
         rows: list[dict[str, Any]] = []
-        for major_candidate in major_candidates or [""]:
-            rows = safe_admission_get(
-                admission_params(
-                    school,
-                    major_candidate,
-                    fuzzy_school=True,
-                    include_major=bool(major_candidate),
-                    exact_batch=True,
-                    limit=18,
+        for school_candidate in school_candidates:
+            for major_candidate in major_candidates or [""]:
+                rows = safe_admission_get(
+                    admission_params(
+                        school_candidate,
+                        major_candidate,
+                        fuzzy_school=True,
+                        include_major=bool(major_candidate),
+                        exact_batch=True,
+                        limit=18,
+                    ),
+                    timeout=5,
                 )
-            )
+                if rows:
+                    break
             if rows:
                 break
         if not rows and major_candidates:
-            rows = safe_admission_get(
-                admission_params(school, major_candidates[0], fuzzy_school=True, include_major=False, limit=12)
-            )
-        if not rows:
-            preferred_major = major_candidates[0] if major_candidates else major
-            rows = safe_admission_get(
-                admission_params(
-                    school,
-                    preferred_major,
-                    fuzzy_school=True,
-                    include_major=bool(preferred_major),
-                    exact_batch=False,
-                    limit=10,
+            for school_candidate in school_candidates:
+                rows = safe_admission_get(
+                    admission_params(school_candidate, major_candidates[0], fuzzy_school=True, include_major=False, limit=12),
+                    timeout=4,
                 )
-            )
+                if rows:
+                    break
         if not rows:
             preferred_major = major_candidates[0] if major_candidates else major
-            rows = safe_admission_get(
-                admission_params(school, preferred_major, include_major=bool(preferred_major), exact_batch=True, limit=8)
-            )
-        admission_matches[order_no] = enrich_rank_from_score(rows)
+            for school_candidate in school_candidates:
+                rows = safe_admission_get(
+                    admission_params(
+                        school_candidate,
+                        preferred_major,
+                        fuzzy_school=True,
+                        include_major=bool(preferred_major),
+                        exact_batch=False,
+                        limit=10,
+                    ),
+                    timeout=4,
+                )
+                if rows:
+                    break
+        if not rows:
+            preferred_major = major_candidates[0] if major_candidates else major
+            for school_candidate in school_candidates:
+                rows = safe_admission_get(
+                    admission_params(
+                        school_candidate,
+                        preferred_major,
+                        fuzzy_school=True,
+                        include_major=bool(preferred_major),
+                        exact_batch=False,
+                        years=all_years_filter,
+                        limit=12,
+                    ),
+                    timeout=3,
+                )
+                if rows:
+                    break
+        if not rows:
+            preferred_major = major_candidates[0] if major_candidates else major
+            for school_candidate in school_candidates:
+                rows = safe_admission_get(
+                    admission_params(
+                        school_candidate,
+                        preferred_major,
+                        include_major=bool(preferred_major),
+                        exact_batch=True,
+                        years=all_years_filter,
+                        limit=8,
+                    ),
+                    timeout=3,
+                )
+                if rows:
+                    break
+        return order_no, rows
+
+    with ThreadPoolExecutor(max_workers=min(10, max(1, len(volunteers[:96])))) as executor:
+        futures = [executor.submit(match_volunteer_admission, volunteer) for volunteer in volunteers[:96]]
+        for future in as_completed(futures):
+            order_no, rows = future.result()
+            if order_no:
+                admission_matches[order_no] = enrich_rank_from_score(rows)
 
     return {
         "requestedYear": requested_year,
@@ -773,6 +846,8 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "volunteer_type": item.get("type"),
                 "action": item.get("action"),
                 "score": item.get("score"),
+                "evidence_source": (item.get("ranks") or {}).get("source"),
+                "match_count": (item.get("ranks") or {}).get("matchCount"),
                 "reasons": item.get("reasons") or [],
                 "evidence_preview": {
                     "rank_2023": (item.get("ranks") or {}).get("2023"),
@@ -782,6 +857,8 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 },
             }
         )
+
+    evidence_sources = [(item.get("ranks") or {}).get("source") for item in diagnoses]
 
     return {
         "student": {
@@ -795,10 +872,18 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "restriction": form.get("restriction"),
             "language": form.get("language"),
             "budget": form.get("budget"),
+            "region_preference": form.get("regionPreference"),
             "preferred_major": form.get("preferredMajor"),
             "avoid_major": form.get("avoidMajor"),
         },
         "summary": summary,
+        "evidence_audit": {
+            "ai_rematch": payload.get("aiRematch") or {},
+            "public_data_count": evidence_sources.count("public-data"),
+            "score_only_count": evidence_sources.count("score-only"),
+            "estimated_count": evidence_sources.count("estimated"),
+            "rule": "DeepSeek必须以该证据审计为边界；estimated只能给复核建议，不得写成已匹配投档数据。",
+        },
         "diagnoses": compact_diagnoses,
     }
 
@@ -810,10 +895,16 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
             "role": "system",
             "content": (
                 "你是河北省高考志愿风险体检报告助手。"
+                "你理解河北新高考普通类志愿按“专业（类）+学校”为基本单位，最多96个志愿，"
+                "平行志愿按分数优先、遵循志愿、一轮投档的逻辑运行。"
+                "你给出的调整建议必须围绕位次安全边际、近年波动、专业热度、选科/体检/语种/费用限制、地域偏好和家庭风险承受度综合判断。"
+                "你可以使用常规冲稳保垫思路：冲刺区控制密度、稳妥区承担主体录取概率、保底和垫底区保证真实可执行性；"
+                "但不得机械套用固定比例，必须结合输入数据解释为什么这样调整。"
                 "你只能依据输入的结构化数据生成解释，不得虚构学校、专业、分数、位次、招生计划或来源。"
                 "不得使用“保证录取”“一定录取”“绝对安全”等表述。"
-                "如果数据只是演示或证据不足，必须明确提示“数据不足，建议人工复核”。"
-                "报告格式使用：总评、主要问题、逐条意见、优先修改清单、提交前提醒。"
+                "如果某条没有匹配到足够公开投档记录，必须说明已降级为结构判断，建议核验官方招生计划、院校章程、近年投档线和专业组选科要求。"
+                "输入中的 evidence_audit 是完整报告生成前重新匹配后的证据审计结果，必须在总评中说明直接命中、分数记录和需复核的大致情况。"
+                "报告格式使用：总评、志愿结构评估、地域和专业适配、逐条意见、优先修改清单、提交前提醒。"
             ),
         },
         {

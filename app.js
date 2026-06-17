@@ -26,6 +26,9 @@ const viewAliases = {
   features: "product",
   workflow: "product",
   checkup: "checkup",
+  volunteers: "volunteers",
+  volunteer: "volunteers",
+  "volunteer-table": "volunteers",
   "license-admin": "license-admin",
   sources: "product",
   dimensions: "product",
@@ -34,6 +37,8 @@ const viewAliases = {
   pricing: "pricing",
   faq: "pricing"
 };
+
+const volunteerStorageKey = "xunlu.volunteerTable.standardText.v2";
 
 function getAvailableViews() {
   return new Set(Array.from(document.querySelectorAll(".app-view[data-view]")).map((section) => section.dataset.view));
@@ -708,11 +713,14 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const avoid = splitKeywords(formData.avoidMajor);
   const electives = splitKeywords(formData.electives);
   const major = volunteer.majorName;
+  const regionPreference = String(formData.regionPreference || "");
+  const hebeiSchoolPattern = /河北|石家庄|保定|唐山|秦皇岛|邯郸|邢台|沧州|廊坊|衡水|承德|张家口/;
 
   const needsChemistry = /临床|口腔|医学|药学|化学|化工|材料|机械|电气|计算机|软件|人工智能|电子|自动化/.test(major);
   const selectionMismatch = formData.subject.includes("物理") && needsChemistry && electives.length > 0 && !electives.some((item) => /化学/.test(item));
   const avoidMatch = avoid.some((item) => item && major.includes(item));
   const preferenceMatch = preferred.length === 0 || preferred.some((item) => major.includes(item));
+  const regionMismatch = /不接受省外|只接受省内|仅河北|优先省内/.test(regionPreference) && !hebeiSchoolPattern.test(volunteer.schoolName);
   const highFee = /中外|国际|软件|校企|民办/.test(`${volunteer.schoolName}${major}`) || /2万|20000|高收费/.test(formData.budget || "");
   const trendRisk = /计算机|软件|人工智能|临床|口腔|电气|法学|汉语言/.test(major);
   const volatilityRisk = ranks.swing > 8000;
@@ -730,13 +738,14 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (trendRisk) score -= 7;
   if (volatilityRisk) score -= 6;
   if (!preferenceMatch) score -= 8;
+  if (regionMismatch) score -= 6;
   if (highFee) score -= 7;
   if (avoidMatch) score -= 18;
   if (selectionMismatch) score -= 35;
   if (belowBatchLine) score -= 45;
   score = Math.max(0, Math.min(100, score));
 
-  const flags = { selectionMismatch, avoidMatch, highFee, trendRisk, volatilityRisk, preferenceMatch, belowBatchLine };
+  const flags = { selectionMismatch, avoidMatch, highFee, trendRisk, volatilityRisk, preferenceMatch, regionMismatch, belowBatchLine };
   const risk = getRiskLevel(score);
   const action = getAction(score, flags);
   const reasons = [];
@@ -752,6 +761,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (selectionMismatch) reasons.push("该专业可能涉及物理+化学等选科要求，当前选科信息需要硬性核验。");
   if (avoidMatch) reasons.push("专业名称命中用户明确不能接受方向。");
   if (!preferenceMatch) reasons.push("专业名称与用户偏好方向存在差异，建议确认课程和培养方向。");
+  if (regionMismatch) reasons.push("院校地域与当前地域偏好存在冲突，需要确认是否接受省外或远距离城市。");
   if (highFee) reasons.push("存在高收费、中外合作或预算冲突提示。");
 
   return {
@@ -799,6 +809,7 @@ function buildLeadSummary(formData, summary, diagnoses) {
 科目组合：${formData.subject}
 批次：${formData.batch}
 分数/位次：${formData.score || "未填"} / ${formData.rank || "未填"}
+地域偏好：${formData.regionPreference || "未填"}
 志愿数量：${summary.total}条
 结构概览：冲刺${summary.rush}、稳妥${summary.stable}、保底${summary.safe}
 高风险志愿：${summary.high}条
@@ -837,7 +848,14 @@ function renderAiReport(content, meta = {}) {
       <strong>${escapeHTML(meta.model ? "AI已生成" : "规则解读")}</strong>
     </div>
     <div class="ai-report-body">${markdownToHTML(content)}</div>
+    <div class="ai-report-actions">
+      <button class="outline-button compact" type="button" data-export-pdf>
+        <i data-lucide="download" aria-hidden="true"></i>
+        导出PDF
+      </button>
+    </div>
   `;
+  createIcons();
 }
 
 function renderAiStatus(message, tone = "loading") {
@@ -850,6 +868,31 @@ function renderAiStatus(message, tone = "loading") {
     </div>
   `;
   createIcons();
+}
+
+async function refreshReportPayloadForAi() {
+  const basePayload = latestReportPayload || {};
+  const formData = { ...(basePayload.formData || {}) };
+  const sourceText = formData.volunteers || getStoredVolunteerText() || sampleVolunteerText;
+  const volunteers = parseVolunteers(sourceText);
+  if (!volunteers.length) {
+    throw new Error("未识别到可用于完整报告的志愿表");
+  }
+  formData.volunteers = volunteers.map(volunteerToTextLine).join("\n");
+  const dataContext = await requestDataContext(formData, volunteers);
+  const diagnoses = volunteers.map((volunteer) => diagnoseVolunteer(volunteer, formData, dataContext));
+  const summary = buildStructureSummary(diagnoses);
+  const aiRematch = {
+    mode: "pre-ai-public-data-refresh",
+    refreshedAt: new Date().toISOString(),
+    volunteerCount: volunteers.length,
+    publicMatchedCount: diagnoses.filter((item) => item.ranks.source === "public-data").length,
+    scoreOnlyCount: diagnoses.filter((item) => item.ranks.source === "score-only").length,
+    estimatedCount: diagnoses.filter((item) => item.ranks.source === "estimated").length
+  };
+  latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
+  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiRematch };
+  return latestReportPayload;
 }
 
 async function generateAiReport(button) {
@@ -868,16 +911,26 @@ async function generateAiReport(button) {
   const originalHTML = button?.innerHTML;
   if (button) {
     button.disabled = true;
-    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 报告生成中';
+    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 二次匹配中';
     createIcons();
   }
-  renderAiStatus("授权码校验通过后会扣减一次完整报告生成次数，正在整理报告。");
+  renderAiStatus("正在重新匹配公开投档数据，匹配成功后才会提交 DeepSeek 生成完整报告。");
 
+  let rematchCompleted = false;
   try {
+    const refreshedPayload = await refreshReportPayloadForAi();
+    rematchCompleted = true;
+    renderAiStatus(
+      `二次匹配完成：${refreshedPayload.aiRematch.publicMatchedCount}条直接命中公开记录，${refreshedPayload.aiRematch.estimatedCount}条需要人工复核。正在生成完整报告。`
+    );
+    if (button) {
+      button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 报告生成中';
+      createIcons();
+    }
     const response = await fetch("/api/ai-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...latestReportPayload, licenseCode })
+      body: JSON.stringify({ ...refreshedPayload, licenseCode })
     });
     const data = await response.json();
     if (!response.ok || !data.ok) {
@@ -890,7 +943,9 @@ async function generateAiReport(button) {
     renderAiReport(data.content, { model: data.model });
     toast("完整报告已生成");
   } catch (error) {
-    renderAiStatus(`${error.message}。如果已付款，请联系顾问核对授权码。`, "error");
+    const prefix = rematchCompleted ? "二次匹配已完成，但完整报告生成未继续：" : "";
+    const cleanMessage = String(error.message || "未知错误").replace(/[。.!！]+$/, "");
+    renderAiStatus(`${prefix}${cleanMessage}。完整报告未生成时不会扣减授权码；如果已付款，请联系顾问核对。`, "error");
   } finally {
     if (button) {
       button.disabled = false;
@@ -966,7 +1021,7 @@ function buildEvidencePreview(item) {
   if (item.ranks.source === "score-only") {
     return "匹配到公开分数记录，但缺少可直接比较的位次字段，建议人工复核。";
   }
-  return "本条未匹配到足够公开历史记录，当前仅作为结构预览。";
+  return "本条未在当前收录数据中精确命中该校该专业近年位次，系统已尝试别名、专业简称、批次放宽和更早年份，当前仅作为结构预览。";
 }
 
 async function renderReport(formData) {
@@ -984,7 +1039,7 @@ async function renderReport(formData) {
   const diagnoses = volunteers.map((volunteer) => diagnoseVolunteer(volunteer, formData, dataContext));
   const summary = buildStructureSummary(diagnoses);
   latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
-  latestReportPayload = { formData, summary, diagnoses, dataContext };
+  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext };
 
   const previewItems = diagnoses.slice(0, 8);
   const priorityItems = diagnoses
@@ -1053,7 +1108,7 @@ async function renderReport(formData) {
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          <span>逐条体检结果已生成。输入购买后获得的授权码，即可整理成家长可读的完整报告。</span>
+          <span>逐条体检结果已生成。可先导出预览PDF；输入授权码后可生成 DeepSeek 完整解读报告。</span>
         </div>
       </div>
 
@@ -1069,6 +1124,10 @@ async function renderReport(formData) {
         <button class="outline-button" type="button" data-copy-inline>
           <i data-lucide="copy" aria-hidden="true"></i>
           复制体检摘要
+        </button>
+        <button class="outline-button" type="button" data-export-pdf>
+          <i data-lucide="download" aria-hidden="true"></i>
+          导出PDF
         </button>
       </div>
     </div>
@@ -1092,6 +1151,27 @@ async function copyLeadSummary() {
     }
     toast("已复制体检摘要");
   }
+}
+
+function exportReportPdf() {
+  const report = document.querySelector("#liveReport .live-result");
+  if (!report) {
+    toast("请先生成风险预览报告");
+    return;
+  }
+  document.body.classList.add("print-report-mode");
+  const originalTitle = document.title;
+  document.title = `寻鹿升学-志愿风险评估报告-${new Date().toISOString().slice(0, 10)}`;
+  const cleanup = () => {
+    document.body.classList.remove("print-report-mode");
+    document.title = originalTitle;
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(cleanup, 1200);
+  }, 80);
 }
 
 function toast(message) {
@@ -1317,6 +1397,22 @@ function parseWorkbookFile(file, onSuccess, onError) {
 
 const volunteerBatchOptions = ["本科批", "本科提前批", "专科批"];
 
+function getStoredVolunteerText() {
+  try {
+    return localStorage.getItem(volunteerStorageKey) || "";
+  } catch {
+    return "";
+  }
+}
+
+function storeVolunteerText(text) {
+  try {
+    localStorage.setItem(volunteerStorageKey, text || "");
+  } catch {
+    // Some browsers disable localStorage; the hidden textarea still carries the current payload.
+  }
+}
+
 function getVolunteerTableElements() {
   return {
     editor: document.querySelector("#volunteerTableEditor"),
@@ -1435,6 +1531,29 @@ function updateVolunteerTableStatus(summary = {}) {
   status.textContent = `当前表格共${totalRows}行，已识别${completeCount}条完整志愿${warning}；最多支持96条。`;
 }
 
+function updateVolunteerSummary(summary = {}) {
+  const { textarea } = getVolunteerTableElements();
+  const count = summary.completeCount ?? parseVolunteers(textarea?.value || "").length;
+  const countNode = document.querySelector("#volunteerSummaryCount");
+  const detailNode = document.querySelector("#volunteerSummaryDetail");
+  const statusNode = document.querySelector("#volunteerSummaryStatus");
+  if (countNode) countNode.textContent = String(count);
+  if (detailNode) {
+    detailNode.textContent =
+      count > 0
+        ? `当前将按${count}条志愿生成预览报告；如需调整顺序，请先进入志愿表页面。`
+        : "尚未识别到完整志愿，请先上传 Excel/CSV 或在线录入。";
+  }
+  if (statusNode) {
+    statusNode.textContent =
+      count >= 80
+        ? "志愿数量已接近完整表，建议重点检查最后20个保底和垫底志愿。"
+        : count > 0
+          ? "已读取志愿表，数量较少时请确认是否只是局部测试或预览。"
+          : "请先确认志愿表顺序，再生成风险预览。";
+  }
+}
+
 function syncVolunteerTextareaFromTable() {
   const { textarea } = getVolunteerTableElements();
   if (!textarea) return { completeCount: 0 };
@@ -1443,6 +1562,8 @@ function syncVolunteerTextareaFromTable() {
   textarea.value = completeRows.map((row, index) => volunteerToTextLine({ ...row, orderNo: index + 1 })).join("\n");
   const summary = { completeCount: completeRows.length };
   updateVolunteerTableStatus(summary);
+  updateVolunteerSummary(summary);
+  storeVolunteerText(textarea.value);
   return summary;
 }
 
@@ -1468,7 +1589,7 @@ function initVolunteerTableEditor() {
   const { body, textarea, editor } = getVolunteerTableElements();
   if (!body || !textarea || !editor) return;
 
-  renderVolunteerTableFromText(textarea.value || sampleVolunteerText);
+  renderVolunteerTableFromText(textarea.value || getStoredVolunteerText() || sampleVolunteerText);
 
   body.addEventListener("input", () => {
     syncVolunteerTextareaFromTable();
@@ -1541,6 +1662,7 @@ function initFileUpload() {
       reader.addEventListener("load", () => {
         const text = String(reader.result || "");
         textarea.value = text;
+        storeVolunteerText(text);
         const count = renderVolunteerTableFromText(text);
         status.textContent = `已解析：${file.name}，识别到${count}条志愿。请在下方表格确认顺序后生成报告。`;
       });
@@ -1551,6 +1673,7 @@ function initFileUpload() {
         file,
         (text, sheetName) => {
           textarea.value = text;
+          storeVolunteerText(text);
           const count = renderVolunteerTableFromText(text);
           status.textContent = `已解析：${file.name} / ${sheetName}，识别到${count}条志愿。请在下方表格继续上调、下调或补充信息。`;
         },
@@ -1569,7 +1692,7 @@ function initInteractions() {
 
   const volunteerTextarea = document.querySelector("#volunteers");
   if (volunteerTextarea && !volunteerTextarea.value.trim()) {
-    volunteerTextarea.value = sampleVolunteerText;
+    volunteerTextarea.value = getStoredVolunteerText() || sampleVolunteerText;
   }
   initVolunteerTableEditor();
 
@@ -1613,9 +1736,17 @@ function initInteractions() {
 
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-volunteer-focus]")) {
-      const editor = document.querySelector("#volunteerTableEditor");
-      editor?.scrollIntoView({ behavior: "smooth", block: "center" });
-      editor?.querySelector('[data-volunteer-field="schoolName"]')?.focus({ preventScroll: true });
+      const focusEditor = () => {
+        const editor = document.querySelector("#volunteerTableEditor");
+        editor?.scrollIntoView({ behavior: "smooth", block: "center" });
+        editor?.querySelector('[data-volunteer-field="schoolName"]')?.focus({ preventScroll: true });
+      };
+      if (document.body.dataset.currentView !== "volunteers") {
+        window.location.hash = "#/volunteers";
+        window.setTimeout(focusEditor, 120);
+      } else {
+        focusEditor();
+      }
       return;
     }
 
@@ -1659,6 +1790,12 @@ function initInteractions() {
 
     if (event.target.closest("#copyLead") || event.target.closest("[data-copy-inline]")) {
       copyLeadSummary();
+      return;
+    }
+
+    if (event.target.closest("[data-export-pdf]")) {
+      exportReportPdf();
+      return;
     }
   });
 
