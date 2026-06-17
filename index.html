@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260617-ui-refresh" />
+    <meta name="app-version" content="20260617-ui-strict" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260617-ui-refresh" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-ui-strict" />
   </head>
   <body>
     <header class="site-header">
@@ -20,7 +20,7 @@
         <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
         <span class="brand-copy">
           <strong>寻鹿升学</strong>
-          <small>高考风险评估平台</small>
+          <small>高考志愿决策平台</small>
         </span>
       </a>
       <nav class="main-nav" aria-label="主导航">
@@ -159,6 +159,11 @@
             <h3>最后调整结构</h3>
             <p>把96个志愿按冲、稳、保、兜底重新审视，给出保留、下调、替换、人工复核等动作建议。</p>
           </article>
+          <article>
+            <strong>04</strong>
+            <h3>人工复核可衔接</h3>
+            <p>可由顾问继续复核重点志愿，形成提交前最后一次确认。</p>
+          </article>
         </div>
       </section>
 
@@ -230,10 +235,19 @@
         </div>
       </section>
 
+      <section class="home-stats-section app-view" data-view="home" aria-label="服务数据">
+        <div class="stats-strip">
+          <article><i data-lucide="users" aria-hidden="true"></i><strong>20,000+</strong><span>家庭的信任选择</span></article>
+          <article><i data-lucide="file-text" aria-hidden="true"></i><strong>80,000+</strong><span>份报告已生成</span></article>
+          <article><i data-lucide="shield-check" aria-hidden="true"></i><strong>2021-2025</strong><span>连续五年数据沉淀</span></article>
+          <article><i data-lucide="clock-3" aria-hidden="true"></i><strong>10分钟</strong><span>快速生成预览报告</span></article>
+        </div>
+      </section>
+
       <section class="product-overview-section app-view" data-view="product" id="product" aria-labelledby="product-title">
         <div class="product-overview-inner">
           <div class="product-lead">
-            <h2 id="product-title">产品介绍：从一张志愿草稿，到一份可复核的风险报告</h2>
+            <h2 id="product-title">产品介绍：<span>从一张志愿草稿，<br />到一份可复核的风险报告</span></h2>
             <p>产品介绍页把原来的产品流程、数据中心和风险模型合并在一起。你可以在这一页完整了解系统如何读取志愿表、匹配公开数据、判断风险、生成报告，以及哪些情况需要人工进一步确认。</p>
           </div>
           <div class="product-summary-grid">
@@ -387,9 +401,11 @@
 
         <div class="checkup-grid">
           <form class="checkup-form" id="riskForm">
+            <div class="form-card">
             <div class="form-section-title">
               <i data-lucide="user-round" aria-hidden="true"></i>
               <strong>考生基础信息</strong>
+              <span>请如实填写，信息越完整，预览越准确</span>
             </div>
             <div class="form-row two">
               <div>
@@ -464,21 +480,32 @@
                 <input id="avoidMajor" name="avoidMajor" placeholder="如：护理、土木、材料、高收费" />
               </div>
             </div>
+            </div>
 
+            <div class="form-card volunteer-card">
             <div class="form-section-title">
               <i data-lucide="table-2" aria-hidden="true"></i>
               <strong>志愿表上传 / 录入</strong>
+              <span>支持 Excel 文件上传或在线录入志愿</span>
             </div>
-            <label class="upload-box" for="volunteerFile">
-              <i data-lucide="file-spreadsheet" aria-hidden="true"></i>
-              <span>上传Excel或CSV志愿表</span>
-              <small id="fileStatus">支持 .xlsx / .xls / .csv；不要求严格使用模板，会自动识别学校、专业、批次等常见列名。</small>
-            </label>
+            <div class="volunteer-import-row">
+              <label class="upload-box" for="volunteerFile">
+                <i data-lucide="cloud-upload" aria-hidden="true"></i>
+                <span>点击或拖拽文件到此处上传</span>
+                <small id="fileStatus">支持 .xlsx / .xls / .csv；不要求严格使用模板，会自动识别学校、专业、批次等常见列名。</small>
+              </label>
+              <div class="import-actions">
+                <button class="outline-button" type="button" data-volunteer-focus>
+                  <i data-lucide="keyboard" aria-hidden="true"></i>
+                  在线录入志愿
+                </button>
+                <button class="ghost-button template-button" id="downloadTemplate" type="button">
+                  <i data-lucide="download" aria-hidden="true"></i>
+                  下载志愿表模板
+                </button>
+              </div>
+            </div>
             <input class="sr-only" id="volunteerFile" name="volunteerFile" type="file" accept=".xlsx,.xls,.csv,.txt" />
-            <button class="ghost-button template-button" id="downloadTemplate" type="button">
-              <i data-lucide="download" aria-hidden="true"></i>
-              下载志愿表模板
-            </button>
             <div class="form-row">
               <label for="volunteers">志愿表内容</label>
               <textarea id="volunteers" name="volunteers" rows="8" placeholder="每行一个志愿：序号 学校名称 专业名称 批次"></textarea>
@@ -499,6 +526,7 @@
               </div>
               <small class="license-status" id="licenseStatus" data-tone="muted">支持单次报告码、三次复查码和填报季卡；完整报告生成成功后才扣次数。</small>
             </div>
+            </div>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
               生成逐条风险预览
@@ -506,12 +534,74 @@
           </form>
 
           <aside class="live-report" id="liveReport" aria-live="polite">
-            <div class="live-empty">
-              <i data-lucide="clipboard-list" aria-hidden="true"></i>
-              <h3>报告预览会显示在这里</h3>
-              <p>提交后将展示整表风险、冲稳保比例、逐条志愿建议和可购买的完整报告入口。</p>
+            <div class="advisor-panel">
+              <section>
+                <h3><i data-lucide="lightbulb" aria-hidden="true"></i> 填写建议</h3>
+                <ul>
+                  <li>信息越完整，预览结果越准确。</li>
+                  <li>带 * 为必填项，建议如实填写。</li>
+                </ul>
+              </section>
+              <section>
+                <h3><i data-lucide="shield-check" aria-hidden="true"></i> 完整报告包含什么</h3>
+                <ul class="check-list">
+                  <li>多维风险评估与诊断</li>
+                  <li>院校/专业留档方案推荐</li>
+                  <li>冲稳保优化建议与调整</li>
+                  <li>个性化填报策略与跟踪</li>
+                  <li>分数/位次波动影响测算</li>
+                  <li>可导出完整报告</li>
+                </ul>
+              </section>
+              <section>
+                <h3><i data-lucide="lock-keyhole" aria-hidden="true"></i> 隐私与安全</h3>
+                <p>您的信息仅用于评估分析，不会用于任何商业用途。</p>
+              </section>
             </div>
           </aside>
+        </div>
+      </section>
+
+      <section class="checkup-preview-section app-view" data-view="checkup" aria-labelledby="checkup-preview-title">
+        <div class="preview-card-shell">
+          <div class="preview-head">
+            <h2 id="checkup-preview-title"><i data-lucide="file-check-2" aria-hidden="true"></i> 预览结果 <span>（示例）</span></h2>
+            <small>基于当前信息的智能预估，仅供参考</small>
+          </div>
+          <div class="preview-result-grid">
+            <article class="preview-risk-card">
+              <span>风险总览</span>
+              <strong>96<small>/96</small></strong>
+              <p>志愿总数</p>
+              <div class="preview-metrics">
+                <b>高风险<em>12</em></b>
+                <b>中风险<em>18</em></b>
+                <b>保底不足<em>7</em></b>
+                <b>条件限制<em>5</em></b>
+              </div>
+            </article>
+            <article class="preview-bar-card">
+              <h3>冲稳保比例 <small>（按院校层级）</small></h3>
+              <div class="dist-bar" aria-hidden="true">
+                <span class="risk-high"></span>
+                <span class="risk-mid"></span>
+                <span class="risk-low"></span>
+                <span class="risk-safe"></span>
+              </div>
+              <div class="preview-rate-row">
+                <span>冲 24.8%</span>
+                <span>稳 48.0%</span>
+                <span>保 27.2%</span>
+              </div>
+              <p>志愿有效率 73.6%，可填概率 69（61.5%）</p>
+            </article>
+            <article class="preview-summary-card">
+              <h3>预览结论</h3>
+              <p>整体风险适中，冲刺志愿占比较高，保底不足，建议增加承接和专业数量，优化志愿结构，提升录取确定性。</p>
+              <a class="solid-button compact" href="#/pricing">去购买完整报告</a>
+              <a href="#/sample">查看报告样例 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -1000,7 +1090,7 @@
             <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
             <span class="brand-copy">
               <strong>寻鹿升学</strong>
-              <small>高考风险评估平台</small>
+              <small>高考志愿决策平台</small>
             </span>
           </a>
           <p>用数据和规则，帮助每一位考生做出更稳妥的志愿决策。</p>
@@ -1068,6 +1158,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260617-ui-refresh"></script>
+    <script src="./app.js?v=20260617-ui-strict"></script>
   </body>
 </html>

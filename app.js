@@ -1398,6 +1398,13 @@ function initInteractions() {
   initFileUpload();
 
   document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-volunteer-focus]")) {
+      const volunteers = document.querySelector("#volunteers");
+      volunteers?.scrollIntoView({ behavior: "smooth", block: "center" });
+      volunteers?.focus({ preventScroll: true });
+      return;
+    }
+
     const copyAdminCode = event.target.closest("[data-copy-admin-code]");
     if (copyAdminCode) {
       copyPlainText(copyAdminCode.dataset.copyAdminCode || "", "已复制授权码");
