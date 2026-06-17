@@ -1085,18 +1085,6 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            api_key, model = get_deepseek_config()
-        except Exception as exc:
-            self.write_json(
-                {
-                    "ok": False,
-                    "error": str(exc),
-                },
-                status=HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-            return
-
-        try:
             payload = self.read_json_payload()
         except Exception as exc:
             self.write_json({"ok": False, "error": f"Invalid JSON: {exc}"}, status=HTTPStatus.BAD_REQUEST)
@@ -1110,20 +1098,20 @@ class AppHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        license_metadata = {
+            "diagnosis_count": len(payload.get("diagnoses") or []),
+            "score": (payload.get("formData") or {}).get("score"),
+            "rank": (payload.get("formData") or {}).get("rank"),
+            "subject": (payload.get("formData") or {}).get("subject"),
+            "batch": (payload.get("formData") or {}).get("batch"),
+        }
+
         try:
-            license_row = consume_license_code(
-                license_code,
-                request_fingerprint=self.request_fingerprint(),
-                client_ip=self.client_ip(),
-                user_agent=self.user_agent(),
-                metadata={
-                    "diagnosis_count": len(payload.get("diagnoses") or []),
-                    "score": (payload.get("formData") or {}).get("score"),
-                    "rank": (payload.get("formData") or {}).get("rank"),
-                    "subject": (payload.get("formData") or {}).get("subject"),
-                    "batch": (payload.get("formData") or {}).get("batch"),
-                },
-            )
+            checked_license_row = verify_license_code(license_code)
+            if is_unlimited_license(checked_license_row):
+                daily_limit = int(checked_license_row.get("max_uses_per_day") or 20)
+                if daily_limit > 0 and count_license_events_today(str(checked_license_row["id"])) >= daily_limit:
+                    raise PermissionError("授权码今日生成次数已达上限，请明天再试或联系顾问。")
         except ValueError as exc:
             self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
@@ -1147,6 +1135,18 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
         except Exception as exc:
             self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
+        try:
+            api_key, model = get_deepseek_config()
+        except Exception as exc:
+            self.write_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                },
+                status=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
             return
 
         body = {
@@ -1175,6 +1175,44 @@ class AppHandler(SimpleHTTPRequestHandler):
             content = (choices[0].get("message") or {}).get("content") if choices else ""
             if not content:
                 raise RuntimeError("DeepSeek response did not include report content.")
+            try:
+                license_row = consume_license_code(
+                    license_code,
+                    request_fingerprint=self.request_fingerprint(),
+                    client_ip=self.client_ip(),
+                    user_agent=self.user_agent(),
+                    metadata=license_metadata,
+                )
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+            except PermissionError as exc:
+                self.write_json({"ok": False, "licenseRequired": True, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+                return
+            except RuntimeError:
+                self.write_json(
+                    {"ok": False, "error": "授权码系统未完成配置，完整报告未扣次，请联系顾问处理。"},
+                    status=HTTPStatus.SERVICE_UNAVAILABLE,
+                )
+                return
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json(
+                    {"ok": False, "error": "授权码系统暂不可用，完整报告未扣次，请联系顾问处理。", "detail": detail},
+                    status=HTTPStatus.BAD_GATEWAY,
+                )
+                return
+            except Exception as exc:
+                self.write_json(
+                    {"ok": False, "error": f"授权码扣次失败，完整报告未扣次：{exc}"},
+                    status=HTTPStatus.BAD_GATEWAY,
+                )
+                return
             self.write_json(
                 {
                     "ok": True,
@@ -1185,13 +1223,6 @@ class AppHandler(SimpleHTTPRequestHandler):
                 }
             )
         except requests.HTTPError as exc:
-            refund_license_use(
-                license_row,
-                request_fingerprint=self.request_fingerprint(),
-                client_ip=self.client_ip(),
-                user_agent=self.user_agent(),
-                reason="DeepSeek HTTP error",
-            )
             status = exc.response.status_code if exc.response is not None else HTTPStatus.BAD_GATEWAY
             try:
                 detail = exc.response.json()
@@ -1199,13 +1230,6 @@ class AppHandler(SimpleHTTPRequestHandler):
                 detail = exc.response.text[:500] if exc.response is not None else str(exc)
             self.write_json({"ok": False, "error": "DeepSeek API request failed.", "detail": detail}, status=status)
         except Exception as exc:
-            refund_license_use(
-                license_row,
-                request_fingerprint=self.request_fingerprint(),
-                client_ip=self.client_ip(),
-                user_agent=self.user_agent(),
-                reason=str(exc),
-            )
             self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
 
     def write_json(self, data: dict[str, Any], status: int = HTTPStatus.OK) -> None:
