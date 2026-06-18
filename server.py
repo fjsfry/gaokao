@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Static site server plus DeepSeek API proxy and public data lookup.
+"""Static site server plus AI report proxy and public data lookup.
 
-The browser never receives the DeepSeek API key. Frontend code posts the
-structured diagnosis result to /api/ai-report, and this server calls DeepSeek.
+The browser never receives the AI report key. Frontend code posts the
+structured diagnosis result to /api/ai-report, and this server calls the
+configured AI report provider.
 """
 
 from __future__ import annotations
@@ -31,8 +32,7 @@ DEFAULT_SUPABASE_URL = "https://tspotlvffujnlnmsglxj.supabase.co"
 SUPPORTED_DEEPSEEK_MODELS = {
     "deepseek-v4-flash",
     "deepseek-v4-pro",
-    # Kept for compatibility with older deployments. DeepSeek has announced
-    # these legacy names will be retired after 2026-07-24.
+    # Kept for compatibility with older deployments and provider aliases.
     "deepseek-chat",
     "deepseek-reasoner",
 }
@@ -932,7 +932,7 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
 
 
 class AppHandler(SimpleHTTPRequestHandler):
-    server_version = "TingNiShuoDeepSeekServer/1.0"
+    server_version = "TingNiShuoAiServer/1.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -982,15 +982,13 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.write_json(
                 {
                     "ok": True,
-                    "model": os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL),
-                    "deepseek_base_url": os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL),
-                    "has_api_key": bool(os.environ.get("DEEPSEEK_API_KEY")),
-                    "has_public_data_key": bool(os.environ.get("SUPABASE_ANON_KEY")),
-                    "has_license_service_key": bool(
+                    "ai_report_ready": bool(os.environ.get("DEEPSEEK_API_KEY")),
+                    "public_data_ready": bool(os.environ.get("SUPABASE_ANON_KEY")),
+                    "license_service_ready": bool(
                         os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
                     ),
-                    "has_license_hash_secret": bool(os.environ.get("LICENSE_HASH_SECRET")),
-                    "has_license_admin_token": bool(os.environ.get("LICENSE_ADMIN_TOKEN")),
+                    "license_hash_ready": bool(os.environ.get("LICENSE_HASH_SECRET")),
+                    "license_admin_ready": bool(os.environ.get("LICENSE_ADMIN_TOKEN")),
                 }
             )
             return
@@ -1265,8 +1263,8 @@ def main() -> None:
     host = os.environ.get("HOST", "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), AppHandler)
     print(f"Serving {ROOT} at http://{host}:{port}/")
-    print(f"DeepSeek model: {os.environ.get('DEEPSEEK_MODEL', DEFAULT_MODEL)}")
-    print(f"DeepSeek key configured: {bool(os.environ.get('DEEPSEEK_API_KEY'))}")
+    print(f"AI report model configured: {bool(os.environ.get('DEEPSEEK_MODEL', DEFAULT_MODEL))}")
+    print(f"AI report key configured: {bool(os.environ.get('DEEPSEEK_API_KEY'))}")
     httpd.serve_forever()
 
 
