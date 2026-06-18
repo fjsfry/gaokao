@@ -845,9 +845,11 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "risk_level": (item.get("risk") or {}).get("label"),
                 "volunteer_type": item.get("type"),
                 "action": item.get("action"),
+                "qualification": item.get("qualification"),
                 "score": item.get("score"),
                 "evidence_source": (item.get("ranks") or {}).get("source"),
                 "match_count": (item.get("ranks") or {}).get("matchCount"),
+                "flags": item.get("flags") or {},
                 "reasons": item.get("reasons") or [],
                 "evidence_preview": {
                     "rank_2023": (item.get("ranks") or {}).get("2023"),
@@ -873,6 +875,10 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "language": form.get("language"),
             "budget": form.get("budget"),
             "region_preference": form.get("regionPreference"),
+            "family_target": form.get("familyTarget"),
+            "accept_private": form.get("acceptPrivate"),
+            "accept_coop": form.get("acceptCoop"),
+            "accept_remote": form.get("acceptRemote"),
             "preferred_major": form.get("preferredMajor"),
             "avoid_major": form.get("avoidMajor"),
         },
@@ -904,14 +910,19 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "不得使用“保证录取”“一定录取”“绝对安全”等表述。"
                 "如果某条没有匹配到足够公开投档记录，必须说明已降级为结构判断，建议核验官方招生计划、院校章程、近年投档线和专业组选科要求。"
                 "输入中的 evidence_audit 是完整报告生成前重新匹配后的证据审计结果，必须在总评中说明直接命中、分数记录和需复核的大致情况。"
-                "报告格式使用：总评、志愿结构评估、地域和专业适配、逐条意见、优先修改清单、提交前提醒。"
+                "报告不能全是文字，必须使用Markdown表格和短段落组合，便于家长阅读。"
+                "必须至少包含以下表格：1考生基本信息表，2志愿结构统计表，3风险统计表，4优先修改清单表，5逐条诊断摘要表。"
+                "表格之外每节最多写2个短段落，语言要像顾问解释给家长听。"
+                "报告格式使用：总评、志愿结构评估、风险统计、优先修改清单、逐条诊断摘要、需要补充的志愿、提交前提醒。"
             ),
         },
         {
             "role": "user",
             "content": (
                 "请根据下面的规则引擎结果，生成一份面向家长的河北志愿表风险体检报告。"
-                "逐条意见最多展示前8条，高风险和建议替换/删除项优先。"
+                "逐条诊断摘要最多展示前12条，高风险和建议替换/删除/下移项优先。"
+                "需要明确输出四类动作：保留、下移、替换、删除。"
+                "需要说明还缺多少稳、保、垫志愿；如果无法确定，请写需人工复核，不要编造学校。"
                 "必须保留证据字段，不能把演示数据包装成官方数据。\n\n"
                 f"{json.dumps(compact, ensure_ascii=False, indent=2)}"
             ),

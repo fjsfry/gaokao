@@ -612,12 +612,12 @@ function estimateHistoricalRanks(volunteer, userRank) {
 }
 
 function classifyVolunteer(diff, relativeDiff, swing) {
-  if (diff < -12000 || relativeDiff < -0.18) return "极冲";
-  if (diff < 0) return "冲";
-  if (diff < 5000 || swing > 8500) return "边缘稳";
-  if (diff < 16000) return "稳";
-  if (diff < 36000) return "保";
-  return "强保";
+  if (relativeDiff < -0.15) return "极冲";
+  if (relativeDiff < -0.05) return "冲";
+  if (relativeDiff < 0) return "小冲";
+  if (relativeDiff < 0.15) return swing > 8500 ? "小冲" : "稳";
+  if (relativeDiff < 0.35) return "保";
+  return "垫";
 }
 
 function getRiskLevel(score) {
@@ -632,6 +632,7 @@ function getAction(score, flags) {
   if (flags.belowBatchLine) return "不建议填报";
   if (flags.selectionMismatch) return "建议删除或人工复核";
   if (flags.avoidMatch) return "建议替换";
+  if (flags.privateConflict || flags.coopConflict || flags.remoteConflict) return "建议替换或下移";
   if (flags.highFee) return "谨慎填报";
   if (score >= 85) return "强烈建议保留";
   if (score >= 75) return "建议保留";
@@ -715,13 +716,17 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const major = volunteer.majorName;
   const regionPreference = String(formData.regionPreference || "");
   const hebeiSchoolPattern = /河北|石家庄|保定|唐山|秦皇岛|邯郸|邢台|沧州|廊坊|衡水|承德|张家口/;
+  const combinedName = `${volunteer.schoolName}${major}`;
 
   const needsChemistry = /临床|口腔|医学|药学|化学|化工|材料|机械|电气|计算机|软件|人工智能|电子|自动化/.test(major);
   const selectionMismatch = formData.subject.includes("物理") && needsChemistry && electives.length > 0 && !electives.some((item) => /化学/.test(item));
   const avoidMatch = avoid.some((item) => item && major.includes(item));
   const preferenceMatch = preferred.length === 0 || preferred.some((item) => major.includes(item));
   const regionMismatch = /不接受省外|只接受省内|仅河北|优先省内/.test(regionPreference) && !hebeiSchoolPattern.test(volunteer.schoolName);
-  const highFee = /中外|国际|软件|校企|民办/.test(`${volunteer.schoolName}${major}`) || /2万|20000|高收费/.test(formData.budget || "");
+  const privateConflict = formData.acceptPrivate === "否" && /民办|独立学院/.test(combinedName);
+  const coopConflict = formData.acceptCoop === "否" && /中外|合作|国际|高收费|校企/.test(combinedName);
+  const remoteConflict = formData.acceptRemote === "否" && !hebeiSchoolPattern.test(volunteer.schoolName) && /不接受太远|优先省内|河北|石家庄|保定|唐山/.test(regionPreference || "河北");
+  const highFee = /中外|国际|软件|校企|民办/.test(combinedName) || /2万|20000|高收费/.test(formData.budget || "") || privateConflict || coopConflict;
   const trendRisk = /计算机|软件|人工智能|临床|口腔|电气|法学|汉语言/.test(major);
   const volatilityRisk = ranks.swing > 8000;
   const batchLine = getRelevantBatchLine(formData, dataContext);
@@ -739,15 +744,36 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (volatilityRisk) score -= 6;
   if (!preferenceMatch) score -= 8;
   if (regionMismatch) score -= 6;
+  if (privateConflict) score -= 12;
+  if (coopConflict) score -= 12;
+  if (remoteConflict) score -= 8;
   if (highFee) score -= 7;
   if (avoidMatch) score -= 18;
   if (selectionMismatch) score -= 35;
   if (belowBatchLine) score -= 45;
   score = Math.max(0, Math.min(100, score));
 
-  const flags = { selectionMismatch, avoidMatch, highFee, trendRisk, volatilityRisk, preferenceMatch, regionMismatch, belowBatchLine };
+  const flags = {
+    selectionMismatch,
+    avoidMatch,
+    highFee,
+    trendRisk,
+    volatilityRisk,
+    preferenceMatch,
+    regionMismatch,
+    privateConflict,
+    coopConflict,
+    remoteConflict,
+    belowBatchLine
+  };
   const risk = getRiskLevel(score);
   const action = getAction(score, flags);
+  const qualification =
+    belowBatchLine || selectionMismatch
+      ? "不建议填报"
+      : privateConflict || coopConflict || remoteConflict || highFee || avoidMatch
+        ? "谨慎填报"
+        : "可报";
   const reasons = [];
 
   if (belowBatchLine) reasons.push(`当前分数低于${batchLine.batch}${batchLine.control_score}分控制线，该批次志愿需要调整。`);
@@ -762,6 +788,9 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (avoidMatch) reasons.push("专业名称命中用户明确不能接受方向。");
   if (!preferenceMatch) reasons.push("专业名称与用户偏好方向存在差异，建议确认课程和培养方向。");
   if (regionMismatch) reasons.push("院校地域与当前地域偏好存在冲突，需要确认是否接受省外或远距离城市。");
+  if (privateConflict) reasons.push("家庭当前不接受民办，院校性质可能与偏好冲突。");
+  if (coopConflict) reasons.push("家庭当前不接受中外合作或高收费项目，需要优先替换或确认费用。");
+  if (remoteConflict) reasons.push("家庭当前不接受偏远城市，本条志愿的城市接受度需要重点复核。");
   if (highFee) reasons.push("存在高收费、中外合作或预算冲突提示。");
 
   return {
@@ -769,6 +798,8 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     score,
     risk,
     action,
+    qualification,
+    formTarget: formData.familyTarget || "稳妥录取",
     type,
     diff,
     ranks,
@@ -780,21 +811,90 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
 
 function buildStructureSummary(diagnoses) {
   const total = diagnoses.length || 1;
-  const rush = diagnoses.filter((item) => item.type.includes("冲")).length;
-  const stable = diagnoses.filter((item) => item.type.includes("稳")).length;
-  const safe = diagnoses.filter((item) => item.type.includes("保")).length;
+  const extremeRush = diagnoses.filter((item) => item.type === "极冲").length;
+  const rushOnly = diagnoses.filter((item) => item.type === "冲").length;
+  const smallRush = diagnoses.filter((item) => item.type === "小冲").length;
+  const stable = diagnoses.filter((item) => item.type === "稳").length;
+  const safeOnly = diagnoses.filter((item) => item.type === "保").length;
+  const cushion = diagnoses.filter((item) => item.type === "垫").length;
+  const rush = extremeRush + rushOnly + smallRush;
+  const safe = safeOnly + cushion;
   const high = diagnoses.filter((item) => item.risk.tone === "high").length;
   const medium = diagnoses.filter((item) => item.risk.tone === "medium").length;
   const low = diagnoses.filter((item) => item.risk.tone === "low").length;
   const replace = diagnoses.filter((item) => /替换|删除/.test(item.action)).length;
+  const invalid = diagnoses.filter((item) => /不建议|删除/.test(item.action) || item.qualification === "不建议填报").length;
+  const retreatRisk = diagnoses.filter((item) => item.flags.selectionMismatch || item.flags.belowBatchLine).length;
+  const highFeeRisk = diagnoses.filter((item) => item.flags.highFee || item.flags.privateConflict || item.flags.coopConflict).length;
+  const selectionMismatch = diagnoses.filter((item) => item.flags.selectionMismatch).length;
+  const publicMatched = diagnoses.filter((item) => item.ranks.source === "public-data").length;
+  const needReview = diagnoses.filter((item) => item.ranks.source !== "public-data").length;
+
+  const target = getTargetDistribution(total, diagnoses[0]?.formTarget);
+  const stableGap = Math.max(0, target.stable - stable);
+  const safeGap = Math.max(0, target.safe - safeOnly);
+  const cushionGap = Math.max(0, target.cushion - cushion);
 
   const comments = [];
-  if (rush / total > 0.42) comments.push("冲刺志愿占比偏高，建议补足中段稳妥承接。");
-  if (safe / total < 0.2) comments.push("保底志愿数量不足，最后10-20个志愿需要重新核验有效性。");
+  if (rush / total > 0.34) comments.push("冲刺志愿占比偏高，建议减少无效冲刺，把位置留给可承接的稳妥志愿。");
+  if (stableGap > 0) comments.push(`稳妥志愿不足，建议至少补充${stableGap}个稳定承接志愿。`);
+  if (safeGap + cushionGap > 0) comments.push(`保底与垫底志愿不足，建议补充${safeGap + cushionGap}个真实可接受的兜底选择。`);
   if (replace > 0) comments.push(`当前至少有${replace}个志愿需要优先替换或删除。`);
+  if (needReview > total * 0.35) comments.push("部分志愿未直接命中公开历史投档记录，完整报告会标注为需人工复核，不包装成确定结论。");
   if (!comments.length) comments.push("当前志愿表结构相对均衡，建议继续核对当年招生计划和院校章程。");
 
-  return { total, rush, stable, safe, high, medium, low, replace, comments };
+  const grade =
+    invalid > 0 || retreatRisk > 0
+      ? "E 严重风险"
+      : high > total * 0.22 || rush > total * 0.45
+        ? "D 高风险"
+        : rush > total * 0.34 || stableGap + safeGap + cushionGap > 0
+          ? "C 风险偏高"
+          : replace > 0 || needReview > total * 0.25
+            ? "B 基本合理"
+            : "A 结构合理";
+
+  return {
+    total,
+    extremeRush,
+    rushOnly,
+    smallRush,
+    rush,
+    stable,
+    safeOnly,
+    cushion,
+    safe,
+    high,
+    medium,
+    low,
+    replace,
+    invalid,
+    retreatRisk,
+    highFeeRisk,
+    selectionMismatch,
+    publicMatched,
+    needReview,
+    target,
+    stableGap,
+    safeGap,
+    cushionGap,
+    grade,
+    comments
+  };
+}
+
+function getTargetDistribution(total, familyTarget = "稳妥录取") {
+  const templates = {
+    稳妥录取: { extremeRush: 3, rushOnly: 7, smallRush: 10, stable: 36, safe: 30, cushion: 10 },
+    专业优先: { extremeRush: 2, rushOnly: 6, smallRush: 10, stable: 38, safe: 30, cushion: 10 },
+    学校优先: { extremeRush: 6, rushOnly: 14, smallRush: 12, stable: 32, safe: 24, cushion: 8 },
+    保本科优先: { extremeRush: 0, rushOnly: 6, smallRush: 8, stable: 28, safe: 38, cushion: 20 },
+    城市优先: { extremeRush: 2, rushOnly: 8, smallRush: 10, stable: 36, safe: 30, cushion: 10 }
+  };
+  const base = templates[familyTarget] || templates.稳妥录取;
+  if (total >= 90) return base;
+  const ratio = total / 96;
+  return Object.fromEntries(Object.entries(base).map(([key, value]) => [key, Math.max(0, Math.round(value * ratio))]));
 }
 
 function buildLeadSummary(formData, summary, diagnoses) {
@@ -810,8 +910,11 @@ function buildLeadSummary(formData, summary, diagnoses) {
 批次：${formData.batch}
 分数/位次：${formData.score || "未填"} / ${formData.rank || "未填"}
 地域偏好：${formData.regionPreference || "未填"}
+家庭目标：${formData.familyTarget || "稳妥录取"}
+民办/中外合作/偏远城市：${formData.acceptPrivate || "未填"} / ${formData.acceptCoop || "未填"} / ${formData.acceptRemote || "未填"}
 志愿数量：${summary.total}条
-结构概览：冲刺${summary.rush}、稳妥${summary.stable}、保底${summary.safe}
+结构概览：极冲${summary.extremeRush}、冲${summary.rushOnly}、小冲${summary.smallRush}、稳${summary.stable}、保${summary.safeOnly}、垫${summary.cushion}
+整体等级：${summary.grade}
 高风险志愿：${summary.high}条
 优先处理：
 ${topItems || "暂无明显高风险项，建议接入官方数据后复核。"}
@@ -819,24 +922,158 @@ ${topItems || "暂无明显高风险项，建议接入官方数据后复核。"}
 `;
 }
 
+function renderMarkdownTable(lines) {
+  const rows = lines
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^\||\|$/g, "")
+        .split("|")
+        .map((cell) => cell.trim())
+    )
+    .filter((row) => row.length > 1);
+  if (rows.length < 2) return "";
+  const header = rows[0];
+  const body = rows.slice(2);
+  return `<div class="ai-table-wrap"><table class="ai-report-table"><thead><tr>${header
+    .map((cell) => `<th>${escapeHTML(cell)}</th>`)
+    .join("")}</tr></thead><tbody>${body
+    .map((row) => `<tr>${header.map((_cell, index) => `<td>${escapeHTML(row[index] || "")}</td>`).join("")}</tr>`)
+    .join("")}</tbody></table></div>`;
+}
+
 function markdownToHTML(markdown) {
-  return String(markdown || "")
-    .split(/\n{2,}/)
-    .map((block) => {
-      const lines = block.split("\n").filter(Boolean);
-      if (!lines.length) return "";
-      const first = lines[0].trim();
-      if (/^#{1,3}\s+/.test(first)) {
-        return `<h4>${escapeHTML(first.replace(/^#{1,3}\s+/, ""))}</h4>`;
+  const lines = String(markdown || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  const html = [];
+  let index = 0;
+
+  const isTableDivider = (line) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+  const isListLine = (line) => /^(\d+\.|-|•)\s+/.test(line.trim());
+
+  while (index < lines.length) {
+    const current = lines[index].trim();
+    if (!current) {
+      index += 1;
+      continue;
+    }
+
+    if (/^#{1,3}\s+/.test(current)) {
+      html.push(`<h4>${escapeHTML(current.replace(/^#{1,3}\s+/, ""))}</h4>`);
+      index += 1;
+      continue;
+    }
+
+    if (lines[index + 1] && current.includes("|") && isTableDivider(lines[index + 1])) {
+      const tableLines = [];
+      while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+        tableLines.push(lines[index]);
+        index += 1;
       }
-      if (lines.every((line) => /^(\d+\.|-|•)\s+/.test(line.trim()))) {
-        return `<ul>${lines
-          .map((line) => `<li>${escapeHTML(line.replace(/^(\d+\.|-|•)\s+/, ""))}</li>`)
-          .join("")}</ul>`;
+      html.push(renderMarkdownTable(tableLines));
+      continue;
+    }
+
+    if (isListLine(current)) {
+      const listLines = [];
+      while (index < lines.length && isListLine(lines[index])) {
+        listLines.push(lines[index].trim());
+        index += 1;
       }
-      return `<p>${escapeHTML(lines.join("\n"))}</p>`;
-    })
-    .join("");
+      html.push(`<ul>${listLines.map((line) => `<li>${escapeHTML(line.replace(/^(\d+\.|-|•)\s+/, ""))}</li>`).join("")}</ul>`);
+      continue;
+    }
+
+    const paragraphLines = [];
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !/^#{1,3}\s+/.test(lines[index].trim()) &&
+      !(lines[index + 1] && lines[index].includes("|") && isTableDivider(lines[index + 1])) &&
+      !isListLine(lines[index])
+    ) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    html.push(`<p>${escapeHTML(paragraphLines.join("\n")).replace(/\n/g, "<br />")}</p>`);
+  }
+
+  return html.join("");
+}
+
+function tableHTML(headers, rows) {
+  return `<div class="ai-table-wrap"><table class="ai-report-table"><thead><tr>${headers
+    .map((header) => `<th>${escapeHTML(header)}</th>`)
+    .join("")}</tr></thead><tbody>${rows
+    .map((row) => `<tr>${headers.map((_header, index) => `<td>${escapeHTML(row[index] ?? "")}</td>`).join("")}</tr>`)
+    .join("")}</tbody></table></div>`;
+}
+
+function buildStructuredReportHTML(payload = latestReportPayload) {
+  if (!payload?.summary || !payload?.diagnoses) return "";
+  const { formData = {}, summary = {}, diagnoses = [] } = payload;
+  const priorityRows = diagnoses
+    .filter((item) => /替换|删除|下移|谨慎|复核|不建议/.test(item.action))
+    .slice(0, 10)
+    .map((item) => [
+      `第${item.orderNo}志愿`,
+      `${item.schoolName} / ${item.majorName}`,
+      item.type,
+      item.qualification || item.risk?.label,
+      item.action,
+      item.reasons?.[0] || "需要结合当年招生计划复核"
+    ]);
+  const detailRows = diagnoses.slice(0, 16).map((item) => [
+    item.orderNo,
+    item.schoolName,
+    item.majorName,
+    item.type,
+    item.risk?.label || "",
+    item.action,
+    item.ranks?.source === "public-data" ? "公开记录" : "需复核"
+  ]);
+  const structureRows = [
+    ["极冲", summary.extremeRush, summary.target?.extremeRush ?? "-", "控制数量，只保留真正想冲的志愿"],
+    ["冲", summary.rushOnly, summary.target?.rushOnly ?? "-", "避免前段过密"],
+    ["小冲", summary.smallRush, summary.target?.smallRush ?? "-", "可作为前中段试探"],
+    ["稳", summary.stable, summary.target?.stable ?? "-", summary.stableGap ? `建议补充${summary.stableGap}个` : "承担主体录取概率"],
+    ["保", summary.safeOnly, summary.target?.safe ?? "-", summary.safeGap ? `建议补充${summary.safeGap}个` : "保证后段承接"],
+    ["垫", summary.cushion, summary.target?.cushion ?? "-", summary.cushionGap ? `建议补充${summary.cushionGap}个` : "兜底防滑档"]
+  ];
+  return `
+    <div class="structured-report">
+      <div class="report-kpi-grid">
+        <article><span>整体风险等级</span><strong>${escapeHTML(summary.grade || "待判断")}</strong></article>
+        <article><span>志愿总数</span><strong>${summary.total || 0}</strong></article>
+        <article><span>需替换/删除</span><strong>${summary.replace || 0}</strong></article>
+        <article><span>需人工复核</span><strong>${summary.needReview || 0}</strong></article>
+      </div>
+      <h4>考生基本信息</h4>
+      ${tableHTML(["项目", "内容"], [
+        ["分数 / 位次", `${formData.score || "未填"} / ${formData.rank || "未填"}`],
+        ["科类 / 批次", `${formData.subject || "未填"} / ${formData.batch || "未填"}`],
+        ["选科 / 目标", `${formData.electives || "未填"} / ${formData.familyTarget || "稳妥录取"}`],
+        ["地域 / 费用", `${formData.regionPreference || "不限"} / ${formData.budget || "未填"}`],
+        ["民办 / 中外合作 / 偏远城市", `${formData.acceptPrivate || "未填"} / ${formData.acceptCoop || "未填"} / ${formData.acceptRemote || "未填"}`]
+      ])}
+      <h4>志愿结构分布与建议目标</h4>
+      ${tableHTML(["层次", "当前数量", "建议目标", "处理建议"], structureRows)}
+      <h4>风险统计</h4>
+      ${tableHTML(["指标", "数量", "说明"], [
+        ["高风险志愿", summary.high || 0, "优先看位次、限制条件和是否需要替换"],
+        ["无效/不建议风险", summary.invalid || 0, "批次、选科、身体或明确偏好冲突"],
+        ["高退档风险", summary.retreatRisk || 0, "选科、批次或硬性条件需核验"],
+        ["高学费/性质风险", summary.highFeeRisk || 0, "民办、中外合作、高收费或预算冲突"],
+        ["公开记录命中", summary.publicMatched || 0, "可追溯证据更强"],
+        ["需人工复核", summary.needReview || 0, "不能包装成确定结论"]
+      ])}
+      <h4>优先修改清单</h4>
+      ${tableHTML(["序号", "院校/专业", "层次", "可报判断", "系统动作", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
+      <h4>逐项诊断摘要</h4>
+      ${tableHTML(["序号", "院校", "专业", "标签", "风险", "建议", "证据"], detailRows)}
+    </div>
+  `;
 }
 
 function renderAiReport(content, meta = {}) {
@@ -847,6 +1084,8 @@ function renderAiReport(content, meta = {}) {
       <span>完整解读报告</span>
       <strong>${escapeHTML(meta.model ? "AI已生成" : "规则解读")}</strong>
     </div>
+    ${buildStructuredReportHTML()}
+    <div class="ai-section-title">AI家长版解释</div>
     <div class="ai-report-body">${markdownToHTML(content)}</div>
     <div class="ai-report-actions">
       <button class="outline-button compact" type="button" data-export-pdf>
@@ -1057,19 +1296,45 @@ async function renderReport(formData) {
         </div>
         <div class="result-score">
           <span>整表风险</span>
-          <strong>${summary.high > 0 || summary.rush / summary.total > 0.42 ? "中高" : "中"}</strong>
+          <strong>${escapeHTML(String(summary.grade || "待判断").split(" ")[0])}</strong>
         </div>
       </div>
 
       <div class="result-cards">
-        <article class="result-card"><span>冲刺志愿</span><strong>${summary.rush}</strong><small>极冲/冲</small></article>
-        <article class="result-card"><span>稳妥志愿</span><strong>${summary.stable}</strong><small>边缘稳/稳</small></article>
-        <article class="result-card"><span>保底志愿</span><strong>${summary.safe}</strong><small>保/强保</small></article>
+        <article class="result-card"><span>冲刺志愿</span><strong>${summary.rush}</strong><small>极冲/冲/小冲</small></article>
+        <article class="result-card"><span>稳妥志愿</span><strong>${summary.stable}</strong><small>建议目标 ${summary.target.stable}</small></article>
+        <article class="result-card"><span>保底垫底</span><strong>${summary.safe}</strong><small>保/垫</small></article>
+        <article class="result-card"><span>需处理</span><strong>${summary.replace}</strong><small>替换/删除/下移</small></article>
       </div>
 
       <div class="diagnosis-card">
         <span>整表结构诊断</span>
+        <h4>${escapeHTML(summary.grade)}</h4>
         ${summary.comments.map((comment) => `<p>${escapeHTML(comment)}</p>`).join("")}
+      </div>
+
+      <div class="diagnosis-card structured-preview-card">
+        <span>冲稳保垫分布</span>
+        ${tableHTML(["层次", "当前数量", "建议目标", "提示"], [
+          ["极冲", summary.extremeRush, summary.target.extremeRush, "控制数量"],
+          ["冲", summary.rushOnly, summary.target.rushOnly, "避免前段过密"],
+          ["小冲", summary.smallRush, summary.target.smallRush, "可作为前中段试探"],
+          ["稳", summary.stable, summary.target.stable, summary.stableGap ? `缺${summary.stableGap}个` : "主体承接"],
+          ["保", summary.safeOnly, summary.target.safe, summary.safeGap ? `缺${summary.safeGap}个` : "后段承接"],
+          ["垫", summary.cushion, summary.target.cushion, summary.cushionGap ? `缺${summary.cushionGap}个` : "防滑档"]
+        ])}
+      </div>
+
+      <div class="diagnosis-card structured-preview-card">
+        <span>风险统计</span>
+        ${tableHTML(["指标", "数量", "说明"], [
+          ["无效风险", summary.invalid, "不建议或需删除项"],
+          ["高退档风险", summary.retreatRisk, "选科/批次等硬性风险"],
+          ["高学费风险", summary.highFeeRisk, "民办/中外合作/高收费冲突"],
+          ["选科不匹配", summary.selectionMismatch, "需核验专业选科要求"],
+          ["公开记录命中", summary.publicMatched, "证据更强"],
+          ["需人工复核", summary.needReview, "不能包装成确定结论"]
+        ])}
       </div>
 
       <div class="diagnosis-list">
@@ -1086,6 +1351,7 @@ async function renderReport(formData) {
                 </header>
                 <div class="risk-tags">
                   <span class="tag">${item.type}</span>
+                  <span class="tag">${escapeHTML(item.qualification)}</span>
                   <span class="tag">${escapeHTML(item.action)}</span>
                   <span class="tag">风险分 ${item.score}</span>
                   <span class="tag">${item.ranks.source === "public-data" ? "已匹配公开记录" : "需复核"}</span>
