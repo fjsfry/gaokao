@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260618-data-contrast-v5" />
+    <meta name="app-version" content="20260618-unified-ui-v6" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-data-contrast-v5" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-unified-ui-v6" />
   </head>
   <body>
     <header class="site-header">
@@ -601,7 +601,7 @@
         <div class="section-heading">
           <span class="eyebrow">志愿表工作台</span>
           <h2 id="volunteers-title">单独整理志愿表，避免在线评估页过于臃肿</h2>
-          <p>支持 Excel/CSV 上传和在线表格录入。系统会按当前表格顺序生成评估 payload，上调/下调会同步重排序号。</p>
+          <p>支持 Excel/CSV 上传和在线表格录入。系统会按当前表格顺序生成评估内容，上调/下调会同步重排序号。</p>
         </div>
         <div class="volunteer-workspace-grid">
           <div class="form-card volunteer-card">
@@ -1262,14 +1262,19 @@
       </div>
     </footer>
 
-    <div class="mobile-cta" aria-label="移动端快速咨询">
+    <button class="floating-consult" type="button" data-open-modal="contactModal" data-package="在线咨询" aria-label="在线咨询">
+      <i data-lucide="headphones" aria-hidden="true"></i>
+      <span>在线咨询</span>
+    </button>
+
+    <div class="mobile-cta" aria-label="快速咨询与生成报告">
       <a class="outline-button" href="tel:18233662815">
         <i data-lucide="phone" aria-hidden="true"></i>
         电话咨询
       </a>
       <a class="solid-button" href="#/checkup">
         <i data-lucide="sparkles" aria-hidden="true"></i>
-        生成预览
+        生成风险预览报告
       </a>
     </div>
 
@@ -1302,6 +1307,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260618-data-contrast-v5"></script>
+    <script src="./app.js?v=20260618-unified-ui-v6"></script>
   </body>
 </html>

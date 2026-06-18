@@ -1535,12 +1535,7 @@ function initMobileCta() {
   const mobileCta = document.querySelector(".mobile-cta");
   if (!mobileCta) return;
 
-  const syncVisibility = () => {
-    mobileCta.classList.toggle("is-visible", window.scrollY > 520);
-  };
-
-  syncVisibility();
-  window.addEventListener("scroll", syncVisibility, { passive: true });
+  mobileCta.classList.add("is-visible");
 }
 
 function downloadTemplate() {
