@@ -5787,3 +5787,727 @@ body.print-report-mode .volunteer-workspace-section {
     border-radius: 20px;
   }
 }
+
+/* 20260618 commercial UI polish: tighter shell, cleaner header/footer, stable mobile nav. */
+:root {
+  --shell: 1180px;
+  --shell-pad: clamp(16px, 3vw, 36px);
+  --inner-pad: clamp(24px, 4vw, 48px);
+  --header-height: 72px;
+  --canvas: #f6fbfa;
+  --navy: #0b3a42;
+  --navy-2: #082d34;
+  --ink: #10202a;
+  --muted: #667783;
+  --line: #dce8e6;
+  --line-strong: #c8dbd8;
+  --teal: #0f706d;
+  --teal-2: #13a59b;
+  --shadow: 0 14px 34px rgba(15, 50, 55, 0.09);
+  --soft-shadow: 0 8px 22px rgba(15, 50, 55, 0.06);
+}
+
+body {
+  padding-top: var(--header-height);
+  background: var(--canvas);
+}
+
+.site-header {
+  min-height: var(--header-height);
+  padding: 8px max(var(--shell-pad), calc((100vw - var(--shell)) / 2 + 18px));
+  grid-template-columns: minmax(204px, auto) minmax(0, 1fr) auto;
+  gap: clamp(16px, 2.4vw, 34px);
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid rgba(200, 219, 216, 0.82);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgba(16, 63, 70, 0.07);
+}
+
+.brand {
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border: 1px solid #d8e7e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(16, 63, 70, 0.08);
+}
+
+.brand-logo {
+  border-radius: 10px;
+  object-fit: contain;
+  object-position: center;
+  padding: 2px;
+}
+
+.brand-copy strong {
+  color: var(--navy);
+  font-size: 19px;
+  line-height: 1.05;
+}
+
+.brand-copy small {
+  color: #5e707a;
+  font-size: 12px;
+}
+
+.main-nav {
+  min-width: 0;
+  justify-content: center;
+  gap: 4px;
+  color: #405260;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.main-nav a {
+  min-height: 38px;
+  padding: 0 10px;
+  gap: 5px;
+  border: 0;
+  border-radius: 10px;
+}
+
+.main-nav a svg {
+  width: 16px;
+  height: 16px;
+}
+
+.main-nav a:hover,
+.main-nav a.is-active {
+  color: var(--navy);
+  background: #edf6f4;
+}
+
+.header-actions {
+  gap: 8px;
+}
+
+.header-actions .compact {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.solid-button,
+.outline-button,
+.ghost-button,
+.icon-button,
+.mini-action,
+.row-action-button {
+  border-radius: 8px;
+}
+
+.hero-section {
+  padding: 24px var(--shell-pad) 0;
+}
+
+.hero-inner {
+  width: min(100%, var(--shell));
+  max-width: var(--shell);
+  min-height: 500px;
+  grid-template-columns: minmax(0, 0.94fr) minmax(420px, 0.86fr);
+  gap: clamp(34px, 5vw, 64px);
+  padding: clamp(34px, 4.5vw, 52px) var(--inner-pad);
+  border-radius: 22px;
+  box-shadow: 0 24px 54px rgba(16, 63, 70, 0.09);
+}
+
+.hero-copy {
+  gap: 17px;
+}
+
+.hero-kicker {
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 8px;
+}
+
+.hero-copy h1 {
+  max-width: 560px;
+  font-size: clamp(42px, 4.2vw, 60px);
+  line-height: 1.08;
+}
+
+.hero-copy p {
+  max-width: 570px;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.hero-actions .large {
+  min-height: 48px;
+  padding: 0 24px;
+}
+
+.trust-row {
+  gap: 10px 20px;
+}
+
+.trust-row span,
+.data-note span {
+  font-size: 14px;
+}
+
+.hero-report {
+  max-width: 462px;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.risk-metrics {
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.risk-metrics article {
+  min-height: 90px;
+  padding: 12px 10px;
+  border-radius: 10px;
+}
+
+.distribution-card,
+.report-hint {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border-radius: 10px;
+}
+
+.home-proof-section,
+.home-snapshot-section,
+.home-intro-section,
+.home-boundary-section,
+.home-stats-section,
+.product-overview-section,
+.reason-section,
+.workflow-section,
+.capability-section,
+.decision-section,
+.checkup-section,
+.checkup-preview-section,
+.checkup-support-section,
+.dimensions-section,
+.model-depth-section,
+.model-scenarios-section,
+.sample-section,
+.report-structure-section,
+.sample-insight-section,
+.data-band,
+.data-coverage-section,
+.trace-section,
+.audience-section,
+.pricing-section,
+.service-process-section,
+.service-compare-section,
+.faq-section,
+.license-admin-section {
+  padding: 38px var(--shell-pad);
+}
+
+.home-proof-section,
+.product-overview-section,
+.checkup-section,
+.sample-section,
+.audience-section,
+.pricing-section,
+.license-admin-section {
+  padding-top: 44px;
+}
+
+.section-heading,
+.compact-heading,
+.license-admin-section .section-heading {
+  max-width: 760px;
+  margin: 0 auto 24px;
+  text-align: center;
+}
+
+.section-heading h2 {
+  font-size: clamp(26px, 2.3vw, 34px);
+  line-height: 1.24;
+}
+
+.section-heading p {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.hero-inner,
+.proof-grid,
+.home-snapshot-section,
+.intro-layout,
+.boundary-grid,
+.stats-strip,
+.product-overview-inner,
+.reason-grid,
+.step-grid,
+.capability-layout,
+.decision-grid,
+.checkup-grid,
+.volunteer-workspace-grid,
+.preview-card-shell,
+.dimension-grid,
+.model-table-card,
+.scenario-grid,
+.sample-table-card,
+.report-section-grid,
+.data-grid,
+.coverage-grid,
+.pricing-grid,
+.audience-grid,
+.service-timeline,
+.compare-card,
+.faq-list,
+.license-admin-shell,
+.license-admin-grid,
+.footer-inner,
+.footer-bottom {
+  width: min(100%, var(--shell));
+  max-width: var(--shell);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.proof-grid,
+.reason-grid,
+.dimension-grid,
+.support-grid,
+.decision-grid,
+.report-section-grid,
+.scenario-grid,
+.coverage-grid,
+.audience-grid {
+  gap: 16px;
+}
+
+.proof-grid article,
+.reason-grid article,
+.dimension-grid article,
+.support-grid article,
+.decision-grid article,
+.report-section-grid article,
+.scenario-grid article,
+.coverage-grid article,
+.audience-grid article,
+.form-card,
+.live-report,
+.preview-card-shell,
+.model-table-card,
+.sample-table-card,
+.compare-card,
+.insight-panel,
+.price-card,
+.license-admin-form,
+.license-admin-result,
+.volunteer-workspace-grid .volunteer-card,
+.volunteer-guide-panel,
+.faq-list details {
+  border-radius: 12px;
+  box-shadow: var(--soft-shadow);
+}
+
+.home-snapshot-section {
+  grid-template-columns: minmax(0, 0.86fr) minmax(420px, 1.14fr);
+  gap: 24px;
+}
+
+.stats-strip article {
+  min-height: 82px;
+  padding: 18px 22px;
+}
+
+.product-overview-inner {
+  grid-template-columns: minmax(0, 0.95fr) minmax(390px, 0.9fr);
+  gap: clamp(28px, 4vw, 54px);
+}
+
+.product-lead h2 {
+  font-size: clamp(34px, 3.5vw, 48px);
+}
+
+.checkup-grid,
+.checkup-flow {
+  width: min(100%, 1040px);
+  max-width: 1040px;
+}
+
+.checkup-flow .checkup-form,
+.checkup-flow .live-report {
+  max-width: 1040px;
+}
+
+.form-card,
+.preview-card-shell {
+  padding: clamp(20px, 2.5vw, 28px);
+}
+
+.volunteer-workspace-section {
+  min-height: auto;
+  padding: 42px var(--shell-pad) 52px;
+}
+
+.volunteer-workspace-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.33fr);
+  gap: 20px;
+}
+
+.volunteer-workspace-grid .volunteer-card,
+.volunteer-guide-panel {
+  padding: 20px;
+}
+
+.volunteer-guide-panel {
+  top: calc(var(--header-height) + 14px);
+}
+
+.license-admin-section {
+  min-height: auto;
+  padding-bottom: 50px;
+}
+
+.license-admin-shell {
+  padding: 0;
+}
+
+.license-admin-grid {
+  grid-template-columns: minmax(0, 0.86fr) minmax(360px, 1fr);
+  gap: 20px;
+}
+
+.license-admin-form,
+.license-admin-result {
+  padding: clamp(20px, 2.6vw, 28px);
+}
+
+.license-admin-result {
+  min-height: 320px;
+}
+
+.admin-empty {
+  max-width: 380px;
+  margin: auto;
+}
+
+.admin-empty svg {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+.pricing-grid {
+  gap: 18px;
+}
+
+.price-card {
+  min-height: 376px;
+  padding: 24px 22px;
+}
+
+.site-footer {
+  background:
+    linear-gradient(90deg, rgba(19, 165, 155, 0.1), transparent 28%, rgba(19, 165, 155, 0.08)),
+    linear-gradient(180deg, #082d34 0%, #061f27 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footer-inner {
+  grid-template-columns: minmax(260px, 1.25fr) minmax(210px, 0.9fr) minmax(140px, 0.58fr) auto;
+  gap: clamp(22px, 3vw, 34px);
+  padding: 26px 0 20px;
+}
+
+.footer-brand {
+  gap: 10px;
+}
+
+.footer-brand p,
+.footer-inner p,
+.footer-inner a,
+.footer-bottom {
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.footer-inner h3 {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.footer-inner > div:nth-child(3) {
+  gap: 4px;
+}
+
+.wechat-qr {
+  width: 96px;
+  height: 96px;
+  border-width: 6px;
+  border-radius: 10px;
+}
+
+.qr-box {
+  gap: 8px;
+}
+
+.footer-bottom {
+  padding: 12px 0 18px;
+}
+
+.mobile-cta {
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+@media (max-width: 1180px) {
+  :root {
+    --header-height: 118px;
+    --shell: 1040px;
+  }
+
+  .site-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 16px;
+    align-content: center;
+  }
+
+  .main-nav {
+    order: 3;
+    grid-column: 1 / -1;
+    justify-content: center;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .main-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .header-actions .ghost-button {
+    display: none;
+  }
+
+  .hero-inner,
+  .product-overview-inner,
+  .home-snapshot-section,
+  .license-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-report,
+  .license-admin-result {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --header-height: 126px;
+    --shell-pad: 16px;
+  }
+
+  body {
+    padding-top: var(--header-height);
+  }
+
+  .site-header {
+    padding: 9px 16px 10px;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+  }
+
+  .brand-logo {
+    border-radius: 8px;
+    padding: 1px;
+  }
+
+  .brand-copy strong {
+    font-size: 18px;
+  }
+
+  .brand-copy small {
+    font-size: 11px;
+  }
+
+  .header-actions {
+    display: none;
+  }
+
+  .main-nav {
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 1px 0 0;
+    font-size: 13px;
+  }
+
+  .main-nav a {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+
+  .main-nav a svg {
+    display: none;
+  }
+
+  .hero-section {
+    padding-top: 18px;
+  }
+
+  .hero-inner {
+    min-height: auto;
+    padding: 30px 18px 24px;
+    border-radius: 16px;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(34px, 10vw, 40px);
+  }
+
+  .hero-copy p {
+    font-size: 15px;
+  }
+
+  .trust-row,
+  .risk-metrics,
+  .preview-metrics,
+  .volunteer-summary-box,
+  .license-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions .solid-button,
+  .hero-actions .outline-button {
+    width: 100%;
+  }
+
+  .home-proof-section,
+  .home-snapshot-section,
+  .home-intro-section,
+  .home-boundary-section,
+  .home-stats-section,
+  .product-overview-section,
+  .reason-section,
+  .workflow-section,
+  .capability-section,
+  .decision-section,
+  .checkup-section,
+  .checkup-preview-section,
+  .checkup-support-section,
+  .dimensions-section,
+  .model-depth-section,
+  .model-scenarios-section,
+  .sample-section,
+  .report-structure-section,
+  .sample-insight-section,
+  .data-band,
+  .data-coverage-section,
+  .trace-section,
+  .audience-section,
+  .pricing-section,
+  .service-process-section,
+  .service-compare-section,
+  .faq-section,
+  .license-admin-section,
+  .volunteer-workspace-section {
+    padding: 30px var(--shell-pad);
+  }
+
+  .section-heading,
+  .compact-heading,
+  .license-admin-section .section-heading {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .section-heading h2 {
+    font-size: 26px;
+  }
+
+  .section-heading p {
+    font-size: 14px;
+  }
+
+  .form-card,
+  .preview-card-shell,
+  .license-admin-form,
+  .license-admin-result,
+  .volunteer-workspace-grid .volunteer-card,
+  .volunteer-guide-panel,
+  .sample-table-card,
+  .model-table-card,
+  .compare-card {
+    padding: 18px;
+    border-radius: 12px;
+  }
+
+  .license-admin-grid,
+  .volunteer-workspace-grid,
+  .footer-inner {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 18px;
+    padding: 20px 0 14px;
+  }
+
+  .footer-brand,
+  .qr-box {
+    grid-column: 1 / -1;
+  }
+
+  .footer-brand {
+    gap: 8px;
+  }
+
+  .footer-brand p,
+  .footer-inner p,
+  .footer-inner a,
+  .footer-bottom {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .footer-inner h3 {
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+
+  .license-admin-result {
+    min-height: 240px;
+  }
+
+  .qr-box {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    justify-items: start;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .wechat-qr {
+    width: 76px;
+    height: 76px;
+    border-width: 5px;
+  }
+
+  .footer-bottom {
+    padding: 10px 0 14px;
+    text-align: left;
+  }
+}
