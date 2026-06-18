@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260618-diagnosis-report-v2" />
+    <meta name="app-version" content="20260618-volunteer-window-v3" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-diagnosis-report-v2" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-volunteer-window-v3" />
   </head>
   <body>
     <header class="site-header">
@@ -632,7 +632,7 @@
               <div class="volunteer-table-toolbar">
                 <div>
                   <label id="volunteerTableLabel">在线录入志愿表</label>
-                  <small>按提交顺序逐行录入，支持上传后继续调整；上调/下调会自动重排序号。</small>
+                  <small>按提交顺序逐行录入，支持在窗口内滚动、拖拽排序，也可用上调/下调微调。</small>
                 </div>
                 <div class="volunteer-table-actions">
                   <button class="outline-button mini-action" type="button" data-volunteer-add>
@@ -645,19 +645,29 @@
                   </button>
                 </div>
               </div>
-              <div class="volunteer-table-scroll" role="group" aria-labelledby="volunteerTableLabel">
-                <table class="volunteer-entry-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">序号</th>
-                      <th scope="col">批次</th>
-                      <th scope="col">院校名称</th>
-                      <th scope="col">专业名称</th>
-                      <th scope="col">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody id="volunteerTableBody"></tbody>
-                </table>
+              <div class="volunteer-window">
+                <div class="volunteer-window-bar">
+                  <span><i data-lucide="panel-top" aria-hidden="true"></i> 志愿表编辑窗口</span>
+                  <small>最多96条，可上下滚动；拖动每行左侧手柄调整顺序。</small>
+                </div>
+                <div class="volunteer-table-scroll" role="group" aria-labelledby="volunteerTableLabel">
+                  <table class="volunteer-entry-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">序号</th>
+                        <th scope="col">批次</th>
+                        <th scope="col">院校名称</th>
+                        <th scope="col">专业名称</th>
+                        <th scope="col">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="volunteerTableBody"></tbody>
+                  </table>
+                </div>
+                <div class="volunteer-window-footer">
+                  <span>窗口内编辑不会拉长整页，提交时按当前顺序生成报告。</span>
+                  <span>可拖动右下角调整窗口高度</span>
+                </div>
               </div>
               <small class="field-help" id="volunteerTableStatus">已预置示例志愿，可直接修改或上传 Excel 后整理顺序。</small>
             </div>
@@ -1085,7 +1095,7 @@
           <h2 id="service-process-title">购买后的服务流程清晰可控</h2>
         </div>
         <div class="service-timeline">
-          <article><span>1</span><h3>免费生成预览</h3><p>上传或粘贴志愿表，先查看风险概况和部分逐条建议。</p></article>
+          <article><span>1</span><h3>免费生成预览</h3><p>上传或整理志愿表，先查看全表风险概况和逐条去留建议。</p></article>
           <article><span>2</span><h3>付款获取授权码</h3><p>顾问按套餐发送单次、三次或填报季报告码，不需要注册账号。</p></article>
           <article><span>3</span><h3>生成完整报告</h3><p>输入授权码后生成家庭可读版完整报告，成功生成后才扣次数。</p></article>
           <article><span>4</span><h3>修改后再次复查</h3><p>三次码和填报季卡支持调整志愿表后继续复核。</p></article>
@@ -1110,7 +1120,7 @@
               </thead>
               <tbody>
                 <tr><td>整表风险预览</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
-                <tr><td>96志愿逐条诊断</td><td>部分</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>96志愿逐条诊断</td><td>预览支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>报告生成次数</td><td>0次</td><td>1次</td><td>3次</td><td>填报季内不限次</td></tr>
                 <tr><td>顾问沟通摘要</td><td>基础</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>重新调整后复查</td><td>可重新预览</td><td>需新码</td><td>支持</td><td>支持</td></tr>
@@ -1287,6 +1297,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260618-diagnosis-report-v2"></script>
+    <script src="./app.js?v=20260618-volunteer-window-v3"></script>
   </body>
 </html>

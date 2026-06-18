@@ -1010,6 +1010,30 @@ function tableHTML(headers, rows) {
     .join("")}</tbody></table></div>`;
 }
 
+function getVolunteerReasonableness(item) {
+  if (item.qualification === "不建议填报" || /不建议|删除/.test(item.action)) return "不合理";
+  if (/替换/.test(item.action)) return "不建议保留原位置";
+  if (/下移/.test(item.action)) return "可报但顺序需调整";
+  if (item.score >= 85) return "合理";
+  if (item.score >= 75) return "基本合理";
+  return "需人工复核";
+}
+
+function getVolunteerRetentionDecision(item) {
+  if (/删除|不建议/.test(item.action)) return "删除";
+  if (/替换/.test(item.action)) return /下移/.test(item.action) ? "替换或下移" : "替换";
+  if (/下调|下移/.test(item.action)) return "下移";
+  if (/保留/.test(item.action)) return "保留";
+  if (/复核/.test(item.action)) return "复核后决定";
+  return item.action || "复核后决定";
+}
+
+function getVolunteerEvidenceLabel(item) {
+  if (item.ranks?.source === "public-data") return "公开记录";
+  if (item.ranks?.source === "score-only") return "分数记录";
+  return "需复核";
+}
+
 function buildStructuredReportHTML(payload = latestReportPayload) {
   if (!payload?.summary || !payload?.diagnoses) return "";
   const { formData = {}, summary = {}, diagnoses = [] } = payload;
@@ -1021,17 +1045,18 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
       `${item.schoolName} / ${item.majorName}`,
       item.type,
       item.qualification || item.risk?.label,
-      item.action,
+      getVolunteerRetentionDecision(item),
       item.reasons?.[0] || "需要结合当年招生计划复核"
     ]);
-  const detailRows = diagnoses.slice(0, 16).map((item) => [
+  const detailRows = diagnoses.map((item) => [
     item.orderNo,
     item.schoolName,
     item.majorName,
     item.type,
+    getVolunteerReasonableness(item),
+    getVolunteerRetentionDecision(item),
     item.risk?.label || "",
-    item.action,
-    item.ranks?.source === "public-data" ? "公开记录" : "需复核"
+    getVolunteerEvidenceLabel(item)
   ]);
   const structureRows = [
     ["极冲", summary.extremeRush, summary.target?.extremeRush ?? "-", "控制数量，只保留真正想冲的志愿"],
@@ -1069,9 +1094,9 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
         ["需人工复核", summary.needReview || 0, "不能包装成确定结论"]
       ])}
       <h4>优先修改清单</h4>
-      ${tableHTML(["序号", "院校/专业", "层次", "可报判断", "系统动作", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
-      <h4>逐项诊断摘要</h4>
-      ${tableHTML(["序号", "院校", "专业", "标签", "风险", "建议", "证据"], detailRows)}
+      ${tableHTML(["序号", "院校/专业", "层次", "可报判断", "去留建议", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
+      <h4>逐项诊断摘要（覆盖全部志愿）</h4>
+      ${tableHTML(["序号", "院校", "专业", "层次", "合理性", "去留", "风险", "证据"], detailRows)}
     </div>
   `;
 }
@@ -1280,7 +1305,7 @@ async function renderReport(formData) {
   latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
   latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext };
 
-  const previewItems = diagnoses.slice(0, 8);
+  const previewItems = diagnoses;
   const priorityItems = diagnoses
     .slice()
     .sort((a, b) => a.score - b.score)
@@ -1337,7 +1362,15 @@ async function renderReport(formData) {
         ])}
       </div>
 
-      <div class="diagnosis-list">
+      <div class="diagnosis-section-head">
+        <div>
+          <span>逐条志愿分析</span>
+          <strong>已覆盖全部${summary.total}条志愿</strong>
+        </div>
+        <small>每条都包含合理性、去留建议、风险原因和证据状态。</small>
+      </div>
+
+      <div class="diagnosis-list full-diagnosis-list">
         ${previewItems
           .map(
             (item) => `
@@ -1352,11 +1385,13 @@ async function renderReport(formData) {
                 <div class="risk-tags">
                   <span class="tag">${item.type}</span>
                   <span class="tag">${escapeHTML(item.qualification)}</span>
-                  <span class="tag">${escapeHTML(item.action)}</span>
+                  <span class="tag">合理性：${escapeHTML(getVolunteerReasonableness(item))}</span>
+                  <span class="tag">去留：${escapeHTML(getVolunteerRetentionDecision(item))}</span>
                   <span class="tag">风险分 ${item.score}</span>
-                  <span class="tag">${item.ranks.source === "public-data" ? "已匹配公开记录" : "需复核"}</span>
+                  <span class="tag">${getVolunteerEvidenceLabel(item)}</span>
                 </div>
-                <p>${escapeHTML(item.reasons[0] || "该志愿需要结合官方数据进一步复核。")}</p>
+                <p><strong>判断：</strong>${escapeHTML(getVolunteerReasonableness(item))}，建议${escapeHTML(getVolunteerRetentionDecision(item))}。</p>
+                <p><strong>原因：</strong>${escapeHTML(item.reasons.slice(0, 2).join("；") || "该志愿需要结合官方数据进一步复核。")}</p>
                 <p>证据摘要：${escapeHTML(buildEvidencePreview(item))}</p>
               </article>
             `
@@ -1717,7 +1752,12 @@ function renderVolunteerEditorRow(row, index) {
   return `
     <tr data-volunteer-row>
       <td data-label="序号">
-        <span class="volunteer-order" data-volunteer-order>${orderNo}</span>
+        <div class="volunteer-order-cell">
+          <button class="drag-handle-button" type="button" draggable="true" data-volunteer-drag title="拖动调整顺序" aria-label="拖动第${orderNo}志愿调整顺序">
+            <i data-lucide="grip-vertical" aria-hidden="true"></i>
+          </button>
+          <span class="volunteer-order" data-volunteer-order>${orderNo}</span>
+        </div>
       </td>
       <td data-label="批次">
         <select data-volunteer-field="batch" aria-label="第${orderNo}志愿批次">
@@ -1770,6 +1810,7 @@ function renumberVolunteerTableRows() {
       moveDown.setAttribute("aria-label", `下调第${orderNo}志愿`);
     }
     row.querySelector("[data-volunteer-remove]")?.setAttribute("aria-label", `删除第${orderNo}志愿`);
+    row.querySelector("[data-volunteer-drag]")?.setAttribute("aria-label", `拖动第${orderNo}志愿调整顺序`);
   });
 }
 
@@ -1856,6 +1897,7 @@ function initVolunteerTableEditor() {
   if (!body || !textarea || !editor) return;
 
   renderVolunteerTableFromText(textarea.value || getStoredVolunteerText() || sampleVolunteerText);
+  let draggedVolunteerRow = null;
 
   body.addEventListener("input", () => {
     syncVolunteerTextareaFromTable();
@@ -1892,6 +1934,43 @@ function initVolunteerTableEditor() {
         syncVolunteerTextareaFromTable();
       }
     }
+  });
+
+  body.addEventListener("dragstart", (event) => {
+    const handle = event.target.closest("[data-volunteer-drag]");
+    if (!handle) return;
+    draggedVolunteerRow = handle.closest("[data-volunteer-row]");
+    if (!draggedVolunteerRow) return;
+    draggedVolunteerRow.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedVolunteerRow.querySelector("[data-volunteer-order]")?.textContent || "");
+  });
+
+  body.addEventListener("dragover", (event) => {
+    if (!draggedVolunteerRow) return;
+    const targetRow = event.target.closest("[data-volunteer-row]");
+    if (!targetRow || targetRow === draggedVolunteerRow) return;
+    event.preventDefault();
+    const rect = targetRow.getBoundingClientRect();
+    const insertAfter = event.clientY > rect.top + rect.height / 2;
+    body.insertBefore(draggedVolunteerRow, insertAfter ? targetRow.nextElementSibling : targetRow);
+  });
+
+  body.addEventListener("drop", (event) => {
+    if (!draggedVolunteerRow) return;
+    event.preventDefault();
+    draggedVolunteerRow.classList.remove("is-dragging");
+    draggedVolunteerRow = null;
+    syncVolunteerTextareaFromTable();
+    toast("已按拖拽顺序更新志愿表");
+  });
+
+  body.addEventListener("dragend", () => {
+    if (draggedVolunteerRow) {
+      draggedVolunteerRow.classList.remove("is-dragging");
+      draggedVolunteerRow = null;
+    }
+    syncVolunteerTextareaFromTable();
   });
 
   document.querySelector("[data-volunteer-add]")?.addEventListener("click", () => {
