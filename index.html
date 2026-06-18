@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260618-unified-ui-v6" />
+    <meta name="app-version" content="20260618-consumer-ready-v7" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-unified-ui-v6" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-consumer-ready-v7" />
   </head>
   <body>
     <header class="site-header">
@@ -35,7 +35,7 @@
         <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="获取授权码">获取授权码</button>
         <a class="solid-button compact" href="#/checkup">
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          免费生成预览报告
+          输入授权码生成报告
         </a>
       </div>
     </header>
@@ -45,7 +45,7 @@
         <div class="hero-wave" aria-hidden="true"></div>
         <div class="hero-inner">
           <div class="hero-copy">
-            <span class="hero-kicker"><i data-lucide="shield-check" aria-hidden="true"></i> 河北96志愿AI风险诊断</span>
+            <span class="hero-kicker"><i data-lucide="shield-check" aria-hidden="true"></i> 河北96志愿智能风险诊断</span>
             <h1 id="hero-title">河北96个志愿<br /><span>不只是填满，更要填稳</span></h1>
             <p>
               上传志愿表，系统逐项诊断冲稳保垫、选科限制、退档风险和保底缺口，生成可调整、可复核的志愿优化报告。
@@ -58,14 +58,14 @@
             </div>
             <div class="hero-actions">
               <a class="solid-button large" href="#/checkup">
-                立即诊断我的志愿表
+                输入授权码开始评估
                 <i data-lucide="arrow-right" aria-hidden="true"></i>
               </a>
               <a class="outline-button large" href="#/sample">查看报告样例</a>
             </div>
             <div class="data-note">
               <span data-public-data-status>正在读取河北公开数据覆盖情况</span>
-              <span>结论用于提交前复核，不替代官方录取规则</span>
+              <span>购买或领取体验授权码后即可匹配公开数据，结论用于提交前复核</span>
             </div>
           </div>
 
@@ -133,7 +133,7 @@
             <div class="report-hint">
               <i data-lucide="info" aria-hidden="true"></i>
               建议优先处理前30个志愿的冲刺密度与后20个志愿的保底有效性。
-              <a href="#/checkup">查看完整预览</a>
+              <a href="#/checkup">输入授权码查看</a>
             </div>
           </aside>
         </div>
@@ -171,9 +171,9 @@
       <section class="home-snapshot-section app-view" data-view="home" aria-labelledby="home-snapshot-title">
         <div class="snapshot-copy">
           <h2 id="home-snapshot-title">家长真正需要的是一份能讨论、能复核、能落地的报告</h2>
-          <p>系统先给出自动化预览，再把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
+          <p>授权码验证后，系统会先生成风险预览，再把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
           <div class="snapshot-actions">
-            <a class="solid-button" href="#/checkup">立即生成风险预览</a>
+            <a class="solid-button" href="#/checkup">输入授权码生成预览</a>
             <a class="outline-button" href="#/product">了解产品能力</a>
           </div>
         </div>
@@ -241,7 +241,7 @@
           <article><i data-lucide="users" aria-hidden="true"></i><strong>20,000+</strong><span>家庭的信任选择</span></article>
           <article><i data-lucide="file-text" aria-hidden="true"></i><strong>80,000+</strong><span>份报告已生成</span></article>
           <article><i data-lucide="shield-check" aria-hidden="true"></i><strong>2021-2025</strong><span>连续五年数据沉淀</span></article>
-          <article><i data-lucide="clock-3" aria-hidden="true"></i><strong>10分钟</strong><span>快速生成预览报告</span></article>
+          <article><i data-lucide="clock-3" aria-hidden="true"></i><strong>10分钟</strong><span>快速生成诊断报告</span></article>
         </div>
       </section>
 
@@ -249,13 +249,41 @@
         <div class="product-overview-inner">
           <div class="product-lead">
             <h2 id="product-title">产品介绍：<span>从一张志愿草稿，<br />到一份可复核的风险报告</span></h2>
-            <p>产品介绍页把原来的产品流程、数据中心和风险模型合并在一起。你可以在这一页完整了解系统如何读取志愿表、匹配公开数据、判断风险、生成报告，以及哪些情况需要人工进一步确认。</p>
+            <p>把志愿草稿变成能复核的报告，需要先确认考生信息，再匹配公开数据，最后把每一条志愿的风险和处理建议整理成家长能看懂的材料。</p>
           </div>
           <div class="product-summary-grid">
-            <article><span>输入</span><strong>成绩、位次、选科、限制条件、志愿表</strong></article>
-            <article><span>计算</span><strong>公开投档记录、一分一档、批次线、风险模型</strong></article>
-            <article><span>输出</span><strong>整表结构、逐条风险、证据摘要、调整动作</strong></article>
-            <article><span>复核</span><strong>证据不足、专业取舍、调剂边界、最终排序</strong></article>
+            <article>
+              <span>输入</span>
+              <i data-lucide="clipboard-list" aria-hidden="true"></i>
+              <div>
+                <strong>录入基础条件</strong>
+                <p>成绩、位次、选科、限制条件、地域偏好和志愿表。</p>
+              </div>
+            </article>
+            <article>
+              <span>计算</span>
+              <i data-lucide="database-zap" aria-hidden="true"></i>
+              <div>
+                <strong>匹配公开数据</strong>
+                <p>参考投档记录、一分一档、批次线和专业波动。</p>
+              </div>
+            </article>
+            <article>
+              <span>输出</span>
+              <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>
+              <div>
+                <strong>形成诊断结论</strong>
+                <p>展示整表结构、逐条风险、证据摘要和调整动作。</p>
+              </div>
+            </article>
+            <article>
+              <span>复核</span>
+              <i data-lucide="shield-check" aria-hidden="true"></i>
+              <div>
+                <strong>支持人工确认</strong>
+                <p>标出证据不足、专业取舍、调剂边界和最终排序。</p>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -391,13 +419,13 @@
       <section class="checkup-section app-view" data-view="checkup" id="checkup" aria-labelledby="checkup-title">
         <div class="section-heading">
           <span class="eyebrow">在线体检</span>
-          <h2 id="checkup-title">先生成预览，再决定是否购买完整报告</h2>
-          <p>先录入考生基础信息，再从独立志愿表页面导入或调整96个志愿，最后生成可复核、可导出的风险报告。</p>
+          <h2 id="checkup-title">先验证授权码，再生成志愿风险诊断</h2>
+          <p>先录入考生基础信息，再从独立志愿表页面导入或调整96个志愿，验证授权码后生成可复核、可导出的风险报告。</p>
         </div>
         <div class="checkup-steps" aria-label="在线评估流程">
           <article class="is-active"><span>1</span><strong>填写信息</strong><small>完善考生与志愿信息</small></article>
           <article><span>2</span><strong>整理志愿</strong><small>在志愿表页面维护顺序</small></article>
-          <article><span>3</span><strong>生成预览</strong><small>查看风险结果与建议</small></article>
+          <article><span>3</span><strong>生成诊断</strong><small>查看风险结果与建议</small></article>
         </div>
 
         <div class="checkup-grid checkup-flow">
@@ -549,9 +577,9 @@
             <div class="form-card license-panel">
               <div class="form-section-title">
                 <i data-lucide="key-round" aria-hidden="true"></i>
-                <strong>完整报告授权码</strong>
+                <strong>授权码校验</strong>
               </div>
-              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 AI 智能完整解读报告时才会扣减次数。</p>
+              <p>生成匹配结果前必须先验证授权码。验证通过只解锁公开数据匹配，完整报告成功生成后才会扣减次数。</p>
               <div class="license-input-row">
                 <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
                 <button class="outline-button" type="button" data-license-check>
@@ -559,12 +587,12 @@
                   验证授权码
                 </button>
               </div>
-              <small class="license-status" id="licenseStatus" data-tone="muted">支持单次报告码、三次复查码和填报季卡；完整报告生成成功后才扣次数。</small>
+              <small class="license-status" id="licenseStatus" data-tone="muted">请先输入授权码并验证，再生成逐条风险预览。</small>
             </div>
             <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
-              生成逐条风险预览
+              验证授权码并生成风险预览
             </button>
           </form>
 
@@ -573,6 +601,7 @@
               <section>
                 <h3><i data-lucide="lightbulb" aria-hidden="true"></i> 填写建议</h3>
                 <ul>
+                  <li>先完成授权码验证，再生成匹配结果。</li>
                   <li>信息越完整，预览结果越准确。</li>
                   <li>志愿表顺序在独立页面维护，提交前请先确认冲稳保梯度。</li>
                 </ul>
@@ -923,7 +952,7 @@
           </div>
           <div class="sample-foot">
             <span>以上为报告部分内容，完整报告包含96个志愿逐条诊断与整体优化建议。</span>
-            <a class="solid-button compact" href="#/checkup">免费生成完整报告预览 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
+            <a class="solid-button compact" href="#/checkup">输入授权码生成报告预览 <i data-lucide="arrow-right" aria-hidden="true"></i></a>
           </div>
         </div>
       </section>
@@ -1040,12 +1069,12 @@
       <section class="pricing-section app-view" data-view="pricing" id="pricing" aria-labelledby="pricing-title">
         <div class="section-heading compact-heading">
           <h2 id="pricing-title">价格方案</h2>
-          <p>按使用场景分层定价，购买次数越多，单次报告成本越低。</p>
+          <p>按使用场景分层定价，购买或领取授权码后即可开始评估，购买次数越多，单次报告成本越低。</p>
         </div>
         <div class="pricing-grid">
           <article class="price-card">
-            <span class="plan-label">免费预览版</span>
-            <p>体验核心诊断，了解风险概况</p>
+            <span class="plan-label">体验预览版</span>
+            <p>领取体验授权码后，了解风险概况</p>
             <div class="price">￥<strong>0</strong></div>
             <ul>
               <li>风险总览</li>
@@ -1100,7 +1129,7 @@
           <h2 id="service-process-title">购买后的服务流程清晰可控</h2>
         </div>
         <div class="service-timeline">
-          <article><span>1</span><h3>免费生成预览</h3><p>上传或整理志愿表，先查看全表风险概况和逐条去留建议。</p></article>
+          <article><span>1</span><h3>验证授权码</h3><p>领取或购买授权码后，上传志愿表并生成全表风险概况和逐条去留建议。</p></article>
           <article><span>2</span><h3>付款获取授权码</h3><p>顾问按套餐发送单次、三次或填报季报告码，不需要注册账号。</p></article>
           <article><span>3</span><h3>生成完整报告</h3><p>输入授权码后生成家庭可读版完整报告，成功生成后才扣次数。</p></article>
           <article><span>4</span><h3>修改后再次复查</h3><p>三次码和填报季卡支持调整志愿表后继续复核。</p></article>
@@ -1117,7 +1146,7 @@
               <thead>
                 <tr>
                   <th>服务内容</th>
-                  <th>免费预览</th>
+                  <th>体验预览</th>
                   <th>单次报告码</th>
                   <th>三次复查码</th>
                   <th>填报季卡</th>
@@ -1146,7 +1175,7 @@
           </details>
           <details>
             <summary>数据会被保留吗？</summary>
-            <p>免费预览阶段仅用于生成本次诊断。授权码只记录套餐类型、剩余次数和必要使用日志，不要求用户注册账号。</p>
+            <p>授权码仅用于确认服务权益、生成本次诊断和记录必要使用日志，不要求用户注册账号。</p>
           </details>
           <details>
             <summary>为什么不用账号登录？</summary>
@@ -1154,7 +1183,7 @@
           </details>
           <details>
             <summary>可以修改志愿后重新诊断吗？</summary>
-            <p>可以。预览版可直接重新提交；完整报告按授权码扣次数，三次复查码和填报季卡更适合反复调整后复核。</p>
+            <p>可以。授权码验证通过后可重新提交；完整报告按授权码扣次数，三次复查码和填报季卡更适合反复调整后复核。</p>
           </details>
           <details>
             <summary>支持哪些省份？</summary>
@@ -1274,7 +1303,7 @@
       </a>
       <a class="solid-button" href="#/checkup">
         <i data-lucide="sparkles" aria-hidden="true"></i>
-        生成风险预览报告
+        输入授权码生成报告
       </a>
     </div>
 
@@ -1307,6 +1336,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260618-unified-ui-v6"></script>
+    <script src="./app.js?v=20260618-consumer-ready-v7"></script>
   </body>
 </html>

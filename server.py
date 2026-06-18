@@ -1075,8 +1075,23 @@ class AppHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/checkup":
             try:
                 payload = self.read_json_payload()
+                form_data = payload.get("formData") if isinstance(payload.get("formData"), dict) else {}
+                license_code = payload.get("licenseCode") or form_data.get("licenseCode")
+                if not license_code:
+                    self.write_json(
+                        {"ok": False, "licenseRequired": True, "error": "请先输入并验证授权码，再生成志愿风险评估。"},
+                        status=HTTPStatus.PAYMENT_REQUIRED,
+                    )
+                    return
+                license_row = verify_license_code(license_code)
                 context = fetch_data_context(payload)
-                self.write_json({"ok": True, "context": context})
+                self.write_json({"ok": True, "context": context, "license": public_license_state(license_row)})
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except PermissionError as exc:
+                self.write_json({"ok": False, "licenseRequired": True, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            except RuntimeError:
+                self.write_json({"ok": False, "error": "授权码系统未完成配置，请联系顾问处理。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
             except requests.HTTPError as exc:
                 status = HTTPStatus.BAD_GATEWAY
                 detail: Any = str(exc)
@@ -1085,7 +1100,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         detail = exc.response.json()
                     except Exception:
                         detail = exc.response.text[:500]
-                self.write_json({"ok": False, "error": "Public data lookup failed.", "detail": detail}, status=status)
+                self.write_json({"ok": False, "error": "公开数据匹配失败。", "detail": detail}, status=status)
             except Exception as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return
