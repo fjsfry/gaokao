@@ -888,7 +888,7 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "public_data_count": evidence_sources.count("public-data"),
             "score_only_count": evidence_sources.count("score-only"),
             "estimated_count": evidence_sources.count("estimated"),
-            "rule": "DeepSeek必须以该证据审计为边界；estimated只能给复核建议，不得写成已匹配投档数据。",
+            "rule": "AI报告必须以该证据审计为边界；estimated只能给复核建议，不得写成已匹配投档数据。",
         },
         "diagnoses": compact_diagnoses,
     }
@@ -1186,7 +1186,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             choices = data.get("choices") or []
             content = (choices[0].get("message") or {}).get("content") if choices else ""
             if not content:
-                raise RuntimeError("DeepSeek response did not include report content.")
+                raise RuntimeError("AI报告未返回有效内容。")
             try:
                 license_row = consume_license_code(
                     license_code,
@@ -1240,7 +1240,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 detail = exc.response.json()
             except Exception:
                 detail = exc.response.text[:500] if exc.response is not None else str(exc)
-            self.write_json({"ok": False, "error": "DeepSeek API request failed.", "detail": detail}, status=status)
+            self.write_json({"ok": False, "error": "AI报告生成暂不可用，请稍后重试或联系顾问。", "detail": detail}, status=status)
         except Exception as exc:
             self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
 

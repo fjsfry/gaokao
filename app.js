@@ -57,6 +57,9 @@ function getRouteView() {
 
 function setActiveView(view = getRouteView(), options = {}) {
   const { scroll = true, normalizeHash = false } = options;
+  if (view !== "volunteers") {
+    setVolunteerWindowExpanded(false);
+  }
   document.querySelectorAll(".app-view[data-view]").forEach((section) => {
     section.classList.toggle("is-active", section.dataset.view === view);
   });
@@ -1178,7 +1181,7 @@ async function generateAiReport(button) {
     button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 二次匹配中';
     createIcons();
   }
-  renderAiStatus("正在重新匹配公开投档数据，匹配成功后才会提交 DeepSeek 生成完整报告。");
+  renderAiStatus("正在重新匹配公开投档数据，匹配成功后将生成 AI 智能完整报告。");
 
   let rematchCompleted = false;
   try {
@@ -1409,7 +1412,7 @@ async function renderReport(formData) {
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          <span>逐条体检结果已生成。可先导出预览PDF；输入授权码后可生成 DeepSeek 完整解读报告。</span>
+          <span>逐条体检结果已生成。可先导出预览PDF；输入授权码后可生成 AI 智能完整解读报告。</span>
         </div>
       </div>
 
@@ -1542,9 +1545,9 @@ function initMobileCta() {
 
 function downloadTemplate() {
   const rows = [
-    ["志愿序号", "学校代码", "学校名称", "专业代码", "专业名称", "批次", "科目组合", "学制", "学费", "校区", "备注"],
-    ["1", "", "河北大学", "", "法学", "本科批", "物理科目组合", "4年", "5060", "", ""],
-    ["2", "", "燕山大学", "", "机械类", "本科批", "物理科目组合", "4年", "5390", "", ""]
+    ["志愿序号", "学校代码", "学校名称", "专业代码", "专业名称", "学制", "学费", "校区", "备注"],
+    ["1", "", "河北大学", "", "法学", "4年", "5060", "", ""],
+    ["2", "", "燕山大学", "", "机械类", "4年", "5390", "", ""]
   ];
   const csv = `\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")}`;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -1696,7 +1699,9 @@ function parseWorkbookFile(file, onSuccess, onError) {
   reader.readAsArrayBuffer(file);
 }
 
-const volunteerBatchOptions = ["本科批", "本科提前批", "专科批"];
+function getCurrentVolunteerBatch() {
+  return document.querySelector("#batch")?.value || "本科批";
+}
 
 function getStoredVolunteerText() {
   try {
@@ -1738,15 +1743,6 @@ function normalizeVolunteerEditorRows(rows) {
   return normalized.length ? normalized : [toVolunteerEditorRow()];
 }
 
-function renderVolunteerBatchOptions(selectedBatch) {
-  return volunteerBatchOptions
-    .map((option) => {
-      const selected = option === selectedBatch ? " selected" : "";
-      return `<option value="${escapeHTML(option)}"${selected}>${escapeHTML(option)}</option>`;
-    })
-    .join("");
-}
-
 function renderVolunteerEditorRow(row, index) {
   const orderNo = index + 1;
   return `
@@ -1758,11 +1754,6 @@ function renderVolunteerEditorRow(row, index) {
           </button>
           <span class="volunteer-order" data-volunteer-order>${orderNo}</span>
         </div>
-      </td>
-      <td data-label="批次">
-        <select data-volunteer-field="batch" aria-label="第${orderNo}志愿批次">
-          ${renderVolunteerBatchOptions(row.batch)}
-        </select>
       </td>
       <td data-label="院校名称">
         <input data-volunteer-field="schoolName" value="${escapeHTML(row.schoolName)}" placeholder="如：河北大学" aria-label="第${orderNo}志愿院校名称" />
@@ -1794,10 +1785,8 @@ function renumberVolunteerTableRows() {
     if (order) order.textContent = String(orderNo);
     const school = row.querySelector('[data-volunteer-field="schoolName"]');
     const major = row.querySelector('[data-volunteer-field="majorName"]');
-    const batch = row.querySelector('[data-volunteer-field="batch"]');
     if (school) school.setAttribute("aria-label", `第${orderNo}志愿院校名称`);
     if (major) major.setAttribute("aria-label", `第${orderNo}志愿专业名称`);
-    if (batch) batch.setAttribute("aria-label", `第${orderNo}志愿批次`);
 
     const moveUp = row.querySelector('[data-volunteer-move="-1"]');
     const moveDown = row.querySelector('[data-volunteer-move="1"]');
@@ -1817,9 +1806,10 @@ function renumberVolunteerTableRows() {
 function readVolunteerRowsFromTable({ completeOnly = false } = {}) {
   const { body } = getVolunteerTableElements();
   if (!body) return [];
+  const batch = getCurrentVolunteerBatch();
   const rows = Array.from(body.querySelectorAll("[data-volunteer-row]")).map((row, index) => ({
     orderNo: index + 1,
-    batch: row.querySelector('[data-volunteer-field="batch"]')?.value || "本科批",
+    batch,
     schoolName: normalizeCellText(row.querySelector('[data-volunteer-field="schoolName"]')?.value || ""),
     majorName: normalizeCellText(row.querySelector('[data-volunteer-field="majorName"]')?.value || "")
   }));
@@ -1890,6 +1880,19 @@ function renderVolunteerTableFromText(text) {
 
 function focusVolunteerRow(row, field = "schoolName") {
   row?.querySelector(`[data-volunteer-field="${field}"]`)?.focus({ preventScroll: true });
+}
+
+function setVolunteerWindowExpanded(expanded) {
+  const editor = document.querySelector("#volunteerTableEditor");
+  const button = document.querySelector("[data-volunteer-expand]");
+  if (!editor || !button) return;
+  editor.classList.toggle("is-window-expanded", expanded);
+  document.body.classList.toggle("volunteer-editor-expanded", expanded);
+  button.setAttribute("aria-pressed", String(expanded));
+  button.innerHTML = expanded
+    ? '<i data-lucide="minimize-2" aria-hidden="true"></i> 收起窗口'
+    : '<i data-lucide="maximize-2" aria-hidden="true"></i> 放大编辑';
+  createIcons();
 }
 
 function initVolunteerTableEditor() {
@@ -1988,6 +1991,10 @@ function initVolunteerTableEditor() {
     syncVolunteerTextareaFromTable();
     toast("已按当前表格顺序重新编号");
   });
+
+  document.querySelector("[data-volunteer-expand]")?.addEventListener("click", () => {
+    setVolunteerWindowExpanded(!editor.classList.contains("is-window-expanded"));
+  });
 }
 
 function initFileUpload() {
@@ -2045,7 +2052,7 @@ function initInteractions() {
   const licenseAdminForm = document.querySelector("#licenseAdminForm");
   document.querySelector("#licenseCode")?.addEventListener("input", () => {
     latestLicenseState = null;
-    renderLicenseStatus("授权码已修改，请重新验证；生成完整报告时会再次服务端校验。", "muted");
+    renderLicenseStatus("授权码已修改，请重新验证；生成完整报告时会再次安全校验。", "muted");
   });
 
   form?.addEventListener("submit", async (event) => {
@@ -2145,7 +2152,10 @@ function initInteractions() {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeModals();
+    if (event.key === "Escape") {
+      closeModals();
+      setVolunteerWindowExpanded(false);
+    }
   });
 
   initMobileCta();

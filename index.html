@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260618-volunteer-window-v3" />
+    <meta name="app-version" content="20260618-editor-pricing-v4" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-volunteer-window-v3" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-editor-pricing-v4" />
   </head>
   <body>
     <header class="site-header">
@@ -351,7 +351,7 @@
             <article>
               <i data-lucide="bot" aria-hidden="true"></i>
               <div>
-                <h3>DeepSeek 报告生成</h3>
+                <h3>AI 智能报告</h3>
                 <p>在系统诊断结果之上生成家庭可读的完整说明，保留证据与风险边界，便于沟通决策。</p>
               </div>
             </article>
@@ -551,7 +551,7 @@
                 <i data-lucide="key-round" aria-hidden="true"></i>
                 <strong>完整报告授权码</strong>
               </div>
-              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 DeepSeek 完整解读报告时才会扣减次数。</p>
+              <p>免费预览不需要授权码。购买后输入顾问发送的报告码，生成 AI 智能完整解读报告时才会扣减次数。</p>
               <div class="license-input-row">
                 <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
                 <button class="outline-button" type="button" data-license-check>
@@ -614,7 +614,7 @@
               <label class="upload-box" for="volunteerFile">
                 <i data-lucide="cloud-upload" aria-hidden="true"></i>
                 <span>点击或拖拽文件到此处上传</span>
-                <small id="fileStatus">支持 .xlsx / .xls / .csv；不要求严格使用模板，会自动识别学校、专业、批次等常见列名。</small>
+                <small id="fileStatus">支持 .xlsx / .xls / .csv；不要求严格使用模板，会自动识别学校、专业等常见列名，批次以基础信息为准。</small>
               </label>
               <div class="import-actions">
                 <button class="outline-button" type="button" data-volunteer-focus>
@@ -647,15 +647,20 @@
               </div>
               <div class="volunteer-window">
                 <div class="volunteer-window-bar">
-                  <span><i data-lucide="panel-top" aria-hidden="true"></i> 志愿表编辑窗口</span>
-                  <small>最多96条，可上下滚动；拖动每行左侧手柄调整顺序。</small>
+                  <div>
+                    <span><i data-lucide="panel-top" aria-hidden="true"></i> 志愿表编辑窗口</span>
+                    <small>最多96条，可上下滚动；拖动每行左侧手柄调整顺序。</small>
+                  </div>
+                  <button class="ghost-button mini-action window-expand-button" type="button" data-volunteer-expand aria-pressed="false">
+                    <i data-lucide="maximize-2" aria-hidden="true"></i>
+                    放大编辑
+                  </button>
                 </div>
                 <div class="volunteer-table-scroll" role="group" aria-labelledby="volunteerTableLabel">
                   <table class="volunteer-entry-table">
                     <thead>
                       <tr>
                         <th scope="col">序号</th>
-                        <th scope="col">批次</th>
                         <th scope="col">院校名称</th>
                         <th scope="col">专业名称</th>
                         <th scope="col">操作</th>
@@ -665,8 +670,8 @@
                   </table>
                 </div>
                 <div class="volunteer-window-footer">
-                  <span>窗口内编辑不会拉长整页，提交时按当前顺序生成报告。</span>
-                  <span>可拖动右下角调整窗口高度</span>
+                  <span>窗口内编辑不会拉长整页，提交时按当前顺序和基础信息中的批次生成报告。</span>
+                  <span>可放大编辑，也可拖动右下角调整窗口高度</span>
                 </div>
               </div>
               <small class="field-help" id="volunteerTableStatus">已预置示例志愿，可直接修改或上传 Excel 后整理顺序。</small>
@@ -1035,7 +1040,7 @@
       <section class="pricing-section app-view" data-view="pricing" id="pricing" aria-labelledby="pricing-title">
         <div class="section-heading compact-heading">
           <h2 id="pricing-title">价格方案</h2>
-          <p>数据来源权威可靠，更新及时，安全合规。以下价格沿用当前线上定价。</p>
+          <p>按使用场景分层定价，购买次数越多，单次报告成本越低。</p>
         </div>
         <div class="pricing-grid">
           <article class="price-card">
@@ -1044,20 +1049,20 @@
             <div class="price">￥<strong>0</strong></div>
             <ul>
               <li>风险总览</li>
-              <li>前10个志愿诊断</li>
+              <li>全表逐条风险预览</li>
               <li>风险分布概览</li>
             </ul>
             <a class="solid-button" href="#/checkup">立即体验</a>
           </article>
           <article class="price-card">
             <span class="plan-label">单次报告版</span>
-            <p>付款后获得一个单次报告码</p>
-            <div class="price">￥<strong>29.9</strong></div>
+            <p>适合只做一次提交前复核</p>
+            <div class="price">￥<strong>49</strong><small>/次</small></div>
             <ul>
               <li>96志愿逐条诊断</li>
               <li>梯度与保底分析</li>
               <li>个性化调整建议</li>
-              <li>生成1次完整解读报告</li>
+              <li>生成1次完整AI解读报告</li>
             </ul>
             <button class="outline-button" type="button" data-open-modal="contactModal" data-package="单次报告码">立即购买</button>
           </article>
@@ -1065,12 +1070,12 @@
             <span class="badge">推荐</span>
             <span class="plan-label">三次复查版</span>
             <p>适合家庭深入讨论决策</p>
-            <div class="price">￥<strong>99</strong></div>
+            <div class="price">￥<strong>99</strong><small>约￥33/次</small></div>
             <ul>
               <li>包含单次报告全部内容</li>
-              <li>生成3次完整解读报告</li>
+              <li>生成3次完整AI解读报告</li>
               <li>适合多次调整志愿后复查</li>
-              <li>同一报告码可连续使用</li>
+              <li>比单次购买节省48元</li>
             </ul>
             <button class="solid-button" type="button" data-open-modal="contactModal" data-package="三次复查码">立即购买</button>
           </article>
@@ -1081,13 +1086,13 @@
             <ul>
               <li>填报季内不限次生成</li>
               <li>默认每日20次完整报告上限</li>
-              <li>适合多方案、多批次复核</li>
+              <li>适合多方案、多轮复核</li>
               <li>可单独申请咨询师额度</li>
             </ul>
             <button class="outline-button" type="button" data-open-modal="contactModal" data-package="填报季卡">咨询购买</button>
           </article>
         </div>
-        <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不保证录取结果。</p>
+        <p class="pricing-note">购买即表示同意服务协议与隐私说明。所有报告仅供参考，不承诺录取结果。</p>
       </section>
 
       <section class="service-process-section app-view" data-view="pricing" aria-labelledby="service-process-title">
@@ -1104,7 +1109,7 @@
 
       <section class="service-compare-section app-view" data-view="pricing" aria-labelledby="service-compare-title">
         <div class="section-heading compact-heading">
-          <h2 id="service-compare-title">选择套餐时，看你需要自动化报告还是深度陪跑</h2>
+          <h2 id="service-compare-title">选择套餐时，看你需要一次体检还是多轮复查</h2>
         </div>
         <div class="compare-card">
           <div class="table-scroll">
@@ -1297,6 +1302,6 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260618-volunteer-window-v3"></script>
+    <script src="./app.js?v=20260618-editor-pricing-v4"></script>
   </body>
 </html>

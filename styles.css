@@ -6851,3 +6851,157 @@ body {
     font-size: 16px;
   }
 }
+
+/* 20260618 expanded volunteer editor and parent-facing copy polish. */
+.volunteer-entry-table {
+  min-width: 720px;
+}
+
+.volunteer-entry-table th:nth-child(1) {
+  width: 96px;
+}
+
+.volunteer-entry-table th:nth-child(2),
+.volunteer-entry-table th:nth-child(3) {
+  width: auto;
+}
+
+.volunteer-entry-table th:nth-child(4) {
+  width: 220px;
+}
+
+.volunteer-window-bar > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.volunteer-window-bar small {
+  color: #607882;
+}
+
+.window-expand-button {
+  flex: 0 0 auto;
+  border-color: #cfe4e1;
+  background: #fff;
+}
+
+.window-expand-button[aria-pressed="true"] {
+  border-color: rgba(10, 116, 111, 0.48);
+  background: #eaf8f5;
+  color: var(--teal);
+}
+
+body.volunteer-editor-expanded {
+  overflow: hidden;
+}
+
+body.volunteer-editor-expanded::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  background: rgba(5, 29, 38, 0.54);
+  backdrop-filter: blur(8px);
+}
+
+.volunteer-table-editor.is-window-expanded {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 90;
+  width: min(1120px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  min-height: min(760px, calc(100vh - 32px));
+  transform: translate(-50%, -50%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  overflow: hidden;
+  padding: 18px;
+  border-color: rgba(15, 112, 109, 0.36);
+  border-radius: 18px;
+  background: #f7fbfa;
+  box-shadow: 0 34px 90px rgba(4, 22, 32, 0.34);
+}
+
+.volunteer-table-editor.is-window-expanded .volunteer-table-toolbar {
+  align-items: center;
+  padding: 0 2px;
+}
+
+.volunteer-table-editor.is-window-expanded .volunteer-window {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-radius: 14px;
+}
+
+.volunteer-table-editor.is-window-expanded .volunteer-table-scroll {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  resize: none;
+  background: #fff;
+}
+
+.volunteer-table-editor.is-window-expanded .volunteer-entry-table {
+  min-width: 820px;
+}
+
+.volunteer-table-editor.is-window-expanded .field-help {
+  margin: 0;
+  color: #536e77;
+}
+
+.price-card .price {
+  align-items: baseline;
+  gap: 8px;
+}
+
+.price-card .price small {
+  color: #546b75;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .volunteer-entry-table {
+    min-width: 0;
+  }
+
+  .volunteer-window-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .window-expand-button {
+    justify-self: stretch;
+  }
+
+  .volunteer-table-editor.is-window-expanded {
+    top: 8px;
+    left: 8px;
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    min-height: 0;
+    transform: none;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .volunteer-table-editor.is-window-expanded .volunteer-table-toolbar {
+    align-items: stretch;
+  }
+
+  .volunteer-table-editor.is-window-expanded .volunteer-window {
+    min-height: 0;
+  }
+
+  .volunteer-table-editor.is-window-expanded .volunteer-table-scroll {
+    max-height: calc(100vh - 250px);
+    overflow: auto;
+  }
+
+  .volunteer-table-editor.is-window-expanded .volunteer-window-footer {
+    gap: 6px;
+  }
+}
