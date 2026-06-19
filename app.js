@@ -689,6 +689,68 @@ function getEvidenceRows(volunteer, dataContext) {
   return dataContext?.admissionMatches?.[key] || [];
 }
 
+function getEnrollmentPlanRows(volunteer, dataContext) {
+  const key = String(volunteer.orderNo || "");
+  return dataContext?.enrollmentPlanMatches?.[key] || [];
+}
+
+function getMajorStatRows(volunteer, dataContext) {
+  const key = String(volunteer.orderNo || "");
+  return dataContext?.majorStatMatches?.[key] || [];
+}
+
+function firstUsefulRow(rows) {
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+function planRequiresChemistry(row) {
+  const text = String(row?.selection_requirement || row?.major_remark || "");
+  return /化学|物理.*化|化.*物理|再选.*化/.test(text);
+}
+
+function planRequiresSubject(row, subjectName) {
+  const text = String(row?.selection_requirement || row?.major_remark || "");
+  return subjectName ? text.includes(subjectName) : false;
+}
+
+function planIsNewMajor(row) {
+  return /^(true|1|yes)$/i.test(String(row?.is_new_major || "")) || /新增|新设|首次招生/.test(String(row?.major_remark || ""));
+}
+
+function compactPlanEvidence(rows) {
+  const row = firstUsefulRow(rows);
+  if (!row) return null;
+  return {
+    year: row.year,
+    planCount: normalizeNumber(row.plan_count),
+    selectionRequirement: row.selection_requirement || "",
+    tuition: normalizeNumber(row.tuition),
+    duration: row.duration || "",
+    disciplineCategory: row.discipline_category || "",
+    majorCategory: row.major_category || "",
+    isNewMajor: planIsNewMajor(row),
+    matchCount: rows.length,
+    sourceUrl: row.source_url || ""
+  };
+}
+
+function compactMajorStatEvidence(rows) {
+  const row = firstUsefulRow(rows);
+  if (!row) return null;
+  return {
+    year: row.year,
+    admissionCount: normalizeNumber(row.admission_count),
+    minScore: normalizeNumber(row.min_score),
+    minRank: normalizeNumber(row.min_rank),
+    avgScore: normalizeNumber(row.avg_score),
+    avgRank: normalizeNumber(row.avg_rank),
+    maxScore: normalizeNumber(row.max_score),
+    maxRank: normalizeNumber(row.max_rank),
+    matchCount: rows.length,
+    sourceUrl: row.source_url || ""
+  };
+}
+
 function buildRanksFromEvidence(volunteer, formData, dataContext) {
   const fallbackRank = formData.rank || dataContext?.scoreRank?.cumulative_rank || 50000;
   const fallback = estimateHistoricalRanks(volunteer, fallbackRank);
@@ -752,17 +814,35 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const regionPreference = String(formData.regionPreference || "");
   const hebeiSchoolPattern = /河北|石家庄|保定|唐山|秦皇岛|邯郸|邢台|沧州|廊坊|衡水|承德|张家口/;
   const combinedName = `${volunteer.schoolName}${major}`;
+  const planRows = getEnrollmentPlanRows(volunteer, dataContext);
+  const statRows = getMajorStatRows(volunteer, dataContext);
+  const planEvidence = compactPlanEvidence(planRows);
+  const statEvidence = compactMajorStatEvidence(statRows);
 
   const needsChemistry = /临床|口腔|医学|药学|化学|化工|材料|机械|电气|计算机|软件|人工智能|电子|自动化/.test(major);
-  const selectionMismatch = formData.subject.includes("物理") && needsChemistry && electives.length > 0 && !electives.some((item) => /化学/.test(item));
+  const planChemistryMismatch = planRows.some((row) => planRequiresChemistry(row)) && electives.length > 0 && !electives.some((item) => /化学/.test(item));
+  const planPhysicsMismatch = planRows.some((row) => planRequiresSubject(row, "物理")) && !String(formData.subject || "").includes("物理");
+  const selectionMismatch =
+    (formData.subject.includes("物理") && needsChemistry && electives.length > 0 && !electives.some((item) => /化学/.test(item))) ||
+    planChemistryMismatch ||
+    planPhysicsMismatch;
   const avoidMatch = avoid.some((item) => item && major.includes(item));
   const preferenceMatch = preferred.length === 0 || preferred.some((item) => major.includes(item));
   const regionMismatch = /不接受省外|只接受省内|仅河北|优先省内/.test(regionPreference) && !hebeiSchoolPattern.test(volunteer.schoolName);
   const privateConflict = formData.acceptPrivate === "否" && /民办|独立学院/.test(combinedName);
   const coopConflict = formData.acceptCoop === "否" && /中外|合作|国际|高收费|校企/.test(combinedName);
   const remoteConflict = formData.acceptRemote === "否" && !hebeiSchoolPattern.test(volunteer.schoolName) && /不接受太远|优先省内|河北|石家庄|保定|唐山/.test(regionPreference || "河北");
-  const highFee = /中外|国际|软件|校企|民办/.test(combinedName) || /2万|20000|高收费/.test(formData.budget || "") || privateConflict || coopConflict;
-  const trendRisk = /计算机|软件|人工智能|临床|口腔|电气|法学|汉语言/.test(major);
+  const tuitionRisk = Number(planEvidence?.tuition || 0) >= 18000;
+  const planScarcityRisk = Number(planEvidence?.planCount || 0) > 0 && Number(planEvidence?.planCount || 0) <= 2;
+  const newMajorRisk = Boolean(planEvidence?.isNewMajor);
+  const avgRankPressure = Boolean(statEvidence?.avgRank && userRank > Number(statEvidence.avgRank) * 1.08);
+  const statSpreadRisk = Boolean(
+    statEvidence?.minRank &&
+      statEvidence?.maxRank &&
+      Math.abs(Number(statEvidence.maxRank) - Number(statEvidence.minRank)) > Math.max(userRank * 0.15, 6000)
+  );
+  const highFee = /中外|国际|软件|校企|民办/.test(combinedName) || /2万|20000|高收费/.test(formData.budget || "") || privateConflict || coopConflict || tuitionRisk;
+  const trendRisk = /计算机|软件|人工智能|临床|口腔|电气|法学|汉语言/.test(major) || avgRankPressure;
   const volatilityRisk = ranks.swing > 8000;
   const batchLine = getRelevantBatchLine(formData, dataContext);
   const belowBatchLine = Boolean(batchLine?.control_score && formData.score && formData.score < Number(batchLine.control_score));
@@ -770,6 +850,8 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   let score = 72;
   score += Math.max(-28, Math.min(24, Math.round(relativeDiff * 120)));
   if (ranks.source === "public-data") score += 4;
+  if (planEvidence) score += 2;
+  if (statEvidence) score += 2;
   if (ranks.source === "estimated") score -= 8;
   if (type === "强保") score += 8;
   if (type === "保") score += 5;
@@ -777,6 +859,10 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (type === "极冲") score -= 22;
   if (trendRisk) score -= 7;
   if (volatilityRisk) score -= 6;
+  if (planScarcityRisk) score -= 8;
+  if (newMajorRisk) score -= 5;
+  if (avgRankPressure) score -= 8;
+  if (statSpreadRisk) score -= 5;
   if (!preferenceMatch) score -= 8;
   if (regionMismatch) score -= 6;
   if (privateConflict) score -= 12;
@@ -799,7 +885,13 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     privateConflict,
     coopConflict,
     remoteConflict,
-    belowBatchLine
+    belowBatchLine,
+    planScarcityRisk,
+    newMajorRisk,
+    avgRankPressure,
+    statSpreadRisk,
+    planEvidenceMatched: Boolean(planEvidence),
+    majorStatMatched: Boolean(statEvidence)
   };
   const risk = getRiskLevel(score);
   const action = getAction(score, flags);
@@ -813,12 +905,34 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
 
   if (belowBatchLine) reasons.push(`当前分数低于${batchLine.batch}${batchLine.control_score}分控制线，该批次志愿需要调整。`);
   if (ranks.source === "public-data") reasons.push(`匹配到${ranks.matchCount}条河北公开历史投档记录，参考年份为${dataContext.dataYear || "最新可用年份"}。`);
+  if (planEvidence) {
+    const planBits = [
+      planEvidence.year ? `${planEvidence.year}年计划` : "招生计划",
+      planEvidence.planCount ? `计划${planEvidence.planCount}人` : "",
+      planEvidence.selectionRequirement ? `选科：${planEvidence.selectionRequirement}` : "",
+      planEvidence.tuition ? `学费约${planEvidence.tuition}元/年` : ""
+    ].filter(Boolean);
+    reasons.push(`已匹配招生计划信息：${planBits.join("，")}。`);
+  }
+  if (statEvidence) {
+    const statBits = [
+      statEvidence.year ? `${statEvidence.year}年录取统计` : "录取统计",
+      statEvidence.minRank ? `最低位次${statEvidence.minRank}` : "",
+      statEvidence.avgRank ? `平均位次${statEvidence.avgRank}` : "",
+      statEvidence.admissionCount ? `录取${statEvidence.admissionCount}人` : ""
+    ].filter(Boolean);
+    reasons.push(`已匹配专业录取统计：${statBits.join("，")}。`);
+  }
   if (ranks.source === "score-only") reasons.push("匹配到该校该专业公开分数记录，但部分记录缺少位次，建议人工复核后再下结论。");
   if (ranks.source === "estimated") reasons.push("未匹配到足够公开历史投档记录，本条先按相近规则预估，建议人工复核。");
   if (diff < 0) reasons.push("加权历史最低投档位次高于当前位次，投档安全边际不足。");
   if (diff >= 0) reasons.push(`加权位次安全差约${Math.round(diff)}名，可作为${type}志愿继续核验。`);
   if (trendRisk) reasons.push("专业热度较高，不能只按去年最低位次做判断。");
   if (volatilityRisk) reasons.push("近三年位次波动较大，不适合作为核心保底志愿。");
+  if (planScarcityRisk) reasons.push("当年计划人数较少，小计划专业波动更大，不建议作为核心保底。");
+  if (newMajorRisk) reasons.push("该专业存在新增或首次招生提示，缺少稳定历史参照，需要人工复核培养方向和计划变化。");
+  if (avgRankPressure) reasons.push("近年平均录取位次明显优于当前位次，仅看最低位次容易低估竞争压力。");
+  if (statSpreadRisk) reasons.push("该专业录取位次跨度较大，说明冷热或分流波动明显。");
   if (selectionMismatch) reasons.push("该专业可能涉及物理+化学等选科要求，当前选科信息需要硬性核验。");
   if (avoidMatch) reasons.push("专业名称命中用户明确不能接受方向。");
   if (!preferenceMatch) reasons.push("专业名称与用户偏好方向存在差异，建议确认课程和培养方向。");
@@ -840,7 +954,9 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     ranks,
     evidenceRows: ranks.matches || [],
     flags,
-    reasons: reasons.slice(0, 4)
+    planEvidence,
+    majorStatEvidence: statEvidence,
+    reasons: reasons.slice(0, 6)
   };
 }
 
@@ -863,6 +979,11 @@ function buildStructureSummary(diagnoses) {
   const highFeeRisk = diagnoses.filter((item) => item.flags.highFee || item.flags.privateConflict || item.flags.coopConflict).length;
   const selectionMismatch = diagnoses.filter((item) => item.flags.selectionMismatch).length;
   const publicMatched = diagnoses.filter((item) => item.ranks.source === "public-data").length;
+  const planMatched = diagnoses.filter((item) => item.flags.planEvidenceMatched).length;
+  const statMatched = diagnoses.filter((item) => item.flags.majorStatMatched).length;
+  const planScarcity = diagnoses.filter((item) => item.flags.planScarcityRisk).length;
+  const newMajor = diagnoses.filter((item) => item.flags.newMajorRisk).length;
+  const avgRankPressureCount = diagnoses.filter((item) => item.flags.avgRankPressure).length;
   const needReview = diagnoses.filter((item) => item.ranks.source !== "public-data").length;
 
   const target = getTargetDistribution(total, diagnoses[0]?.formTarget);
@@ -875,6 +996,7 @@ function buildStructureSummary(diagnoses) {
   if (stableGap > 0) comments.push(`稳妥志愿不足，建议至少补充${stableGap}个稳定承接志愿。`);
   if (safeGap + cushionGap > 0) comments.push(`保底与垫底志愿不足，建议补充${safeGap + cushionGap}个真实可接受的兜底选择。`);
   if (replace > 0) comments.push(`当前至少有${replace}个志愿需要优先替换或删除。`);
+  if (planScarcity + newMajor + avgRankPressureCount > 0) comments.push(`有${planScarcity + newMajor + avgRankPressureCount}处计划人数、新增专业或平均位次压力风险，建议优先复核当年招生计划和专业热度。`);
   if (needReview > total * 0.35) comments.push("部分志愿未直接命中公开历史投档记录，完整报告会标注为需人工复核，不包装成确定结论。");
   if (!comments.length) comments.push("当前志愿表结构相对均衡，建议继续核对当年招生计划和院校章程。");
 
@@ -908,6 +1030,11 @@ function buildStructureSummary(diagnoses) {
     highFeeRisk,
     selectionMismatch,
     publicMatched,
+    planMatched,
+    statMatched,
+    planScarcity,
+    newMajor,
+    avgRankPressureCount,
     needReview,
     target,
     stableGap,
@@ -1064,9 +1191,43 @@ function getVolunteerRetentionDecision(item) {
 }
 
 function getVolunteerEvidenceLabel(item) {
-  if (item.ranks?.source === "public-data") return "公开记录";
-  if (item.ranks?.source === "score-only") return "分数记录";
-  return "需复核";
+  const extras = [];
+  if (item.planEvidence) extras.push("计划");
+  if (item.majorStatEvidence) extras.push("统计");
+  const suffix = extras.length ? `+${extras.join("/")}` : "";
+  if (item.ranks?.source === "public-data") return `公开记录${suffix}`;
+  if (item.ranks?.source === "score-only") return `分数记录${suffix}`;
+  return suffix ? `需复核${suffix}` : "需复核";
+}
+
+function getVolunteerPlanStatLabel(item) {
+  const plan = item.planEvidence;
+  const stat = item.majorStatEvidence;
+  const parts = [];
+  if (plan) {
+    parts.push(
+      [
+        plan.planCount ? `计划${plan.planCount}人` : "",
+        plan.selectionRequirement ? `选科${plan.selectionRequirement}` : "",
+        plan.tuition ? `学费${plan.tuition}` : "",
+        plan.isNewMajor ? "新增" : ""
+      ]
+        .filter(Boolean)
+        .join("，")
+    );
+  }
+  if (stat) {
+    parts.push(
+      [
+        stat.minRank ? `最低位次${stat.minRank}` : "",
+        stat.avgRank ? `平均位次${stat.avgRank}` : "",
+        stat.admissionCount ? `录取${stat.admissionCount}人` : ""
+      ]
+        .filter(Boolean)
+        .join("，")
+    );
+  }
+  return parts.filter(Boolean).join("；") || "暂未命中";
 }
 
 function buildStructuredReportHTML(payload = latestReportPayload) {
@@ -1091,7 +1252,8 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
     getVolunteerReasonableness(item),
     getVolunteerRetentionDecision(item),
     item.risk?.label || "",
-    getVolunteerEvidenceLabel(item)
+    getVolunteerEvidenceLabel(item),
+    getVolunteerPlanStatLabel(item)
   ]);
   const structureRows = [
     ["极冲", summary.extremeRush, summary.target?.extremeRush ?? "-", "控制数量，只保留真正想冲的志愿"],
@@ -1131,7 +1293,7 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
       <h4>优先修改清单</h4>
       ${tableHTML(["序号", "院校/专业", "层次", "可报判断", "去留建议", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
       <h4>逐项诊断摘要（覆盖全部志愿）</h4>
-      ${tableHTML(["序号", "院校", "专业", "层次", "合理性", "去留", "风险", "证据"], detailRows)}
+      ${tableHTML(["序号", "院校", "专业", "层次", "合理性", "去留", "风险", "证据", "计划/统计资料"], detailRows)}
     </div>
   `;
 }
@@ -1413,6 +1575,10 @@ async function renderReport(formData) {
           ["高退档风险", summary.retreatRisk, "选科/批次等硬性风险"],
           ["高学费风险", summary.highFeeRisk, "民办/中外合作/高收费冲突"],
           ["选科不匹配", summary.selectionMismatch, "需核验专业选科要求"],
+          ["招生计划命中", summary.planMatched, "可参考计划人数、学费、学制、选科要求"],
+          ["专业统计命中", summary.statMatched, "可参考最低/平均/最高位次与录取人数"],
+          ["小计划/新增压力", summary.planScarcity + summary.newMajor, "小计划和新增专业波动更大"],
+          ["平均位次压力", summary.avgRankPressureCount, "平均录取位次明显优于当前位次"],
           ["公开记录命中", summary.publicMatched, "证据更强"],
           ["需人工复核", summary.needReview, "不能包装成确定结论"]
         ])}
@@ -1445,6 +1611,7 @@ async function renderReport(formData) {
                   <span class="tag">去留：${escapeHTML(getVolunteerRetentionDecision(item))}</span>
                   <span class="tag">风险分 ${item.score}</span>
                   <span class="tag">${getVolunteerEvidenceLabel(item)}</span>
+                  <span class="tag">${escapeHTML(getVolunteerPlanStatLabel(item))}</span>
                 </div>
                 <p><strong>判断：</strong>${escapeHTML(getVolunteerReasonableness(item))}，建议${escapeHTML(getVolunteerRetentionDecision(item))}。</p>
                 <p><strong>原因：</strong>${escapeHTML(item.reasons.slice(0, 2).join("；") || "该志愿需要结合官方数据进一步复核。")}</p>

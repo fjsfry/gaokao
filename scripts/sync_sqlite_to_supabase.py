@@ -20,11 +20,18 @@ TABLES: tuple[str, ...] = (
     "attachment_links",
     "raw_tables",
     "admission_line",
+    "enrollment_plan",
+    "major_admission_stats",
     "score_rank_table",
     "batch_line",
     "ocr_text_blocks",
     "build_summary",
 )
+
+OPTIONAL_TABLES: set[str] = {
+    "enrollment_plan",
+    "major_admission_stats",
+}
 
 PRIMARY_KEYS = {
     "articles": "url",
@@ -33,6 +40,8 @@ PRIMARY_KEYS = {
     "attachment_links": "file_url",
     "raw_tables": "table_id",
     "admission_line": "id",
+    "enrollment_plan": "id",
+    "major_admission_stats": "id",
     "score_rank_table": "id",
     "batch_line": "id",
     "ocr_text_blocks": "id",
@@ -188,9 +197,21 @@ def main() -> None:
     conn = sqlite3.connect(args.sqlite)
     if args.replace:
         for table in TABLES:
-            clear_table(table, service_key, supabase_url)
+            try:
+                clear_table(table, service_key, supabase_url)
+            except RuntimeError as exc:
+                if table in OPTIONAL_TABLES:
+                    print(f"{table}: optional target missing during clear, skipped ({exc})", flush=True)
+                    continue
+                raise
     for table in TABLES:
-        import_table(conn, table, service_key, supabase_url, args.max_json_bytes)
+        try:
+            import_table(conn, table, service_key, supabase_url, args.max_json_bytes)
+        except RuntimeError as exc:
+            if table in OPTIONAL_TABLES:
+                print(f"{table}: optional target missing during import, skipped ({exc})", flush=True)
+                continue
+            raise
     conn.close()
 
 

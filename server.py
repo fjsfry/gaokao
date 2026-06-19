@@ -40,6 +40,8 @@ PUBLIC_TABLES = {
     "admission_line",
     "available_data_years",
     "batch_line",
+    "enrollment_plan",
+    "major_admission_stats",
     "score_rank_table",
     "school_admission_summary",
 }
@@ -144,6 +146,19 @@ def supabase_get(table: str, params: dict[str, str], timeout: int = 20) -> list[
     if not isinstance(data, list):
         raise RuntimeError("Unexpected Supabase response")
     return data
+
+
+def optional_supabase_get(table: str, params: dict[str, str], timeout: int = 20) -> list[dict[str, Any]]:
+    """Read optional enrichment tables without breaking the core diagnosis flow."""
+    try:
+        return supabase_get(table, params, timeout=timeout)
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", 0)
+        if status in {HTTPStatus.NOT_FOUND, HTTPStatus.BAD_REQUEST}:
+            return []
+        raise
+    except (requests.RequestException, RuntimeError, ValueError):
+        return []
 
 
 def supabase_service_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -684,9 +699,12 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         return rows
 
     admission_matches: dict[str, list[dict[str, Any]]] = {}
+    enrollment_plan_matches: dict[str, list[dict[str, Any]]] = {}
+    major_stat_matches: dict[str, list[dict[str, Any]]] = {}
     year_floor = max(2021, data_year - 2)
     years_filter = ",".join(str(year) for year in range(year_floor, data_year + 1))
     all_years_filter = ",".join(str(year) for year in range(2021, data_year + 1))
+    plan_years_filter = ",".join(str(year) for year in sorted({requested_year, data_year}, reverse=True) if year)
 
     def admission_params(
         school: str,
@@ -725,6 +743,46 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
             raise
         except requests.RequestException:
             return []
+
+    def optional_context_params(
+        school: str,
+        major: str,
+        *,
+        table: str,
+        fuzzy_school: bool = False,
+        include_major: bool = True,
+        years: str,
+        limit: int = 8,
+    ) -> dict[str, str]:
+        if table == "enrollment_plan":
+            select = (
+                "year,batch,subject_group,school_code,school_name,major_code,major_name,major_full_name,"
+                "major_remark,level,selection_requirement,plan_count,duration,tuition,"
+                "discipline_category,major_category,is_new_major,source_url,confidence_level"
+            )
+            order = "year.desc,plan_count.asc.nullslast"
+        else:
+            select = (
+                "year,batch,subject_group,school_code,school_name,major_code,major_name,admission_count,"
+                "min_score,min_rank,avg_score,avg_rank,max_score,max_rank,source_url,confidence_level"
+            )
+            order = "year.desc,min_rank.asc.nullslast,min_score.desc"
+        params = {
+            "select": select,
+            "year": f"in.({years})",
+            "subject_group": f"eq.{subject}",
+            "school_name": f"ilike.*{school}*" if fuzzy_school else f"eq.{school}",
+            "order": order,
+            "limit": str(limit),
+        }
+        if batch:
+            params["batch"] = f"eq.{batch}"
+        if include_major and major:
+            params["major_name"] = f"ilike.*{major}*"
+        return params
+
+    def safe_optional_context_get(table: str, params: dict[str, str], timeout: int = 4) -> list[dict[str, Any]]:
+        return optional_supabase_get(table, params, timeout=timeout)
 
     def match_volunteer_admission(volunteer: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         order_no = str(volunteer.get("orderNo") or "")
@@ -812,12 +870,90 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
                     break
         return order_no, rows
 
+    def match_volunteer_enrichment(volunteer: dict[str, Any]) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        order_no = str(volunteer.get("orderNo") or "")
+        school = clean_search_term(volunteer.get("matchSchoolName") or volunteer.get("schoolName"))
+        school_candidates = school_query_candidates(volunteer.get("matchSchoolName") or volunteer.get("schoolName") or school)[:2]
+        major = clean_search_term(volunteer.get("matchMajorName") or volunteer.get("majorName"))
+        major_candidates = major_query_candidates(major)[:2]
+        if not order_no or not school:
+            return order_no, [], []
+
+        plan_rows: list[dict[str, Any]] = []
+        stat_rows: list[dict[str, Any]] = []
+
+        for school_candidate in school_candidates:
+            for major_candidate in major_candidates or [""]:
+                plan_rows = safe_optional_context_get(
+                    "enrollment_plan",
+                    optional_context_params(
+                        school_candidate,
+                        major_candidate,
+                        table="enrollment_plan",
+                        fuzzy_school=True,
+                        include_major=bool(major_candidate),
+                        years=plan_years_filter,
+                        limit=6,
+                    ),
+                    timeout=4,
+                )
+                if plan_rows:
+                    break
+            if plan_rows:
+                break
+
+        if not plan_rows and major_candidates:
+            for school_candidate in school_candidates:
+                plan_rows = safe_optional_context_get(
+                    "enrollment_plan",
+                    optional_context_params(
+                        school_candidate,
+                        major_candidates[0],
+                        table="enrollment_plan",
+                        fuzzy_school=True,
+                        include_major=False,
+                        years=plan_years_filter,
+                        limit=6,
+                    ),
+                    timeout=4,
+                )
+                if plan_rows:
+                    break
+
+        for school_candidate in school_candidates:
+            for major_candidate in major_candidates or [""]:
+                stat_rows = safe_optional_context_get(
+                    "major_admission_stats",
+                    optional_context_params(
+                        school_candidate,
+                        major_candidate,
+                        table="major_admission_stats",
+                        fuzzy_school=True,
+                        include_major=bool(major_candidate),
+                        years=all_years_filter,
+                        limit=10,
+                    ),
+                    timeout=4,
+                )
+                if stat_rows:
+                    break
+            if stat_rows:
+                break
+
+        return order_no, plan_rows, stat_rows
+
     with ThreadPoolExecutor(max_workers=min(10, max(1, len(volunteers[:96])))) as executor:
         futures = [executor.submit(match_volunteer_admission, volunteer) for volunteer in volunteers[:96]]
         for future in as_completed(futures):
             order_no, rows = future.result()
             if order_no:
                 admission_matches[order_no] = enrich_rank_from_score(rows)
+        enrichment_futures = [executor.submit(match_volunteer_enrichment, volunteer) for volunteer in volunteers[:96]]
+        for future in as_completed(enrichment_futures):
+            order_no, plan_rows, stat_rows = future.result()
+            if order_no:
+                enrollment_plan_matches[order_no] = plan_rows
+                major_stat_matches[order_no] = stat_rows
 
     return {
         "requestedYear": requested_year,
@@ -826,6 +962,8 @@ def fetch_data_context(payload: dict[str, Any]) -> dict[str, Any]:
         "batchLines": batch_lines,
         "scoreRank": score_rank[0] if score_rank else None,
         "admissionMatches": admission_matches,
+        "enrollmentPlanMatches": enrollment_plan_matches,
+        "majorStatMatches": major_stat_matches,
     }
 
 
@@ -857,6 +995,8 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                     "rank_2025": (item.get("ranks") or {}).get("2025"),
                     "weighted_rank": (item.get("ranks") or {}).get("weightedRank"),
                 },
+                "enrollment_plan": item.get("planEvidence") or {},
+                "major_admission_stats": item.get("majorStatEvidence") or {},
             }
         )
 
@@ -888,6 +1028,8 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "public_data_count": evidence_sources.count("public-data"),
             "score_only_count": evidence_sources.count("score-only"),
             "estimated_count": evidence_sources.count("estimated"),
+            "enrollment_plan_count": sum(1 for item in diagnoses if item.get("planEvidence")),
+            "major_admission_stats_count": sum(1 for item in diagnoses if item.get("majorStatEvidence")),
             "rule": "AI报告必须以该证据审计为边界；estimated只能给复核建议，不得写成已匹配投档数据。",
         },
         "diagnoses": compact_diagnoses,
@@ -907,6 +1049,9 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "你可以使用常规冲稳保垫思路：冲刺区控制密度、稳妥区承担主体录取概率、保底和垫底区保证真实可执行性；"
                 "但不得机械套用固定比例，必须结合输入数据解释为什么这样调整。"
                 "你只能依据输入的结构化数据生成解释，不得虚构学校、专业、分数、位次、招生计划或来源。"
+                "如果输入中包含 enrollment_plan，必须把计划人数、选科要求、学费、学制、新增专业等作为可报性和波动风险证据。"
+                "如果输入中包含 major_admission_stats，必须把最低位次、平均位次、最高位次和录取人数用于判断专业热度与稳定性。"
+                "如果这些增强资料为空，必须写明未命中公开计划/专业统计，不得自行补造。"
                 "不得使用“保证录取”“一定录取”“绝对安全”等表述。"
                 "如果某条没有匹配到足够公开投档记录，必须说明已降级为结构判断，建议核验官方招生计划、院校章程、近年投档线和专业组选科要求。"
                 "输入中的 evidence_audit 是完整报告生成前重新匹配后的证据审计结果，必须在总评中说明直接命中、分数记录和需复核的大致情况。"

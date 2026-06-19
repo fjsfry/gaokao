@@ -129,6 +129,8 @@ def init_schema(con: sqlite3.Connection) -> None:
         "attachment_links",
         "raw_tables",
         "admission_line",
+        "enrollment_plan",
+        "major_admission_stats",
         "score_rank_table",
         "batch_line",
         "ocr_text_blocks",
@@ -212,6 +214,65 @@ def init_schema(con: sqlite3.Connection) -> None:
     )
     cur.execute(
         """
+        CREATE TABLE enrollment_plan (
+            id TEXT PRIMARY KEY,
+            year INTEGER,
+            province TEXT,
+            batch TEXT,
+            subject_group TEXT,
+            plan_category TEXT,
+            school_code TEXT,
+            school_name TEXT,
+            major_code TEXT,
+            major_name TEXT,
+            major_full_name TEXT,
+            major_remark TEXT,
+            level TEXT,
+            selection_requirement TEXT,
+            plan_count INTEGER,
+            duration TEXT,
+            tuition INTEGER,
+            discipline_category TEXT,
+            major_category TEXT,
+            is_new_major INTEGER,
+            source_file TEXT,
+            source_url TEXT,
+            source_sheet TEXT,
+            confidence_level TEXT,
+            imported_at TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE major_admission_stats (
+            id TEXT PRIMARY KEY,
+            year INTEGER,
+            province TEXT,
+            batch TEXT,
+            subject_group TEXT,
+            school_code TEXT,
+            school_name TEXT,
+            major_code TEXT,
+            major_name TEXT,
+            major_full_name TEXT,
+            admission_count INTEGER,
+            min_score INTEGER,
+            min_rank INTEGER,
+            avg_score INTEGER,
+            avg_rank INTEGER,
+            max_score INTEGER,
+            max_rank INTEGER,
+            source_file TEXT,
+            source_url TEXT,
+            source_sheet TEXT,
+            confidence_level TEXT,
+            imported_at TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
         CREATE TABLE score_rank_table (
             id TEXT PRIMARY KEY,
             year INTEGER,
@@ -273,6 +334,8 @@ def init_schema(con: sqlite3.Connection) -> None:
     )
     cur.execute("CREATE INDEX idx_admission_lookup ON admission_line(year,batch,subject_group,school_name,major_name)")
     cur.execute("CREATE INDEX idx_admission_score ON admission_line(year,subject_group,min_score)")
+    cur.execute("CREATE INDEX idx_enrollment_plan_lookup ON enrollment_plan(year,batch,subject_group,school_name,major_name)")
+    cur.execute("CREATE INDEX idx_major_admission_stats_lookup ON major_admission_stats(year,batch,subject_group,school_name,major_name)")
     cur.execute("CREATE INDEX idx_score_rank_lookup ON score_rank_table(year,subject_group,score)")
     cur.execute("CREATE INDEX idx_batch_line_lookup ON batch_line(year,subject_group,batch)")
     cur.execute("CREATE INDEX idx_ocr_source ON ocr_text_blocks(year,source_file,page_no)")
@@ -336,6 +399,18 @@ def extract_attachment_labels(out_dir: Path) -> dict[str, str]:
 
 def infer_category(title: str, columns: list[str]) -> str:
     col_text = " ".join(columns)
+    if (
+        ("计划人数" in col_text or "计划数" in col_text or "招生计划" in col_text)
+        and ("专业名称" in col_text or "专业全称" in col_text)
+        and ("选科" in col_text or "学费" in col_text or "学制" in col_text)
+    ):
+        return "enrollment_plan"
+    if (
+        ("平均分" in col_text or "平均位次" in col_text or "最高分" in col_text or "最高位次" in col_text)
+        and ("最低分" in col_text or "最低位次" in col_text)
+        and ("专业名称" in col_text or "专业全称" in col_text)
+    ):
+        return "major_admission_stats"
     if "投档最低分" in col_text and ("专业名称" in col_text or "院校名称" in col_text):
         return "admission_line"
     if "成绩统计表" in title or ("人数" in col_text and "累计" in col_text):
@@ -439,6 +514,46 @@ def is_valid_admission_row(row: pd.Series) -> bool:
     )
 
 
+def row_text(row: pd.Series, *names: str) -> str:
+    for name in names:
+        value = clean_text(row.get(name))
+        if value and value.lower() != "nan":
+            return value
+    return ""
+
+
+def row_int(row: pd.Series, *names: str) -> int | None:
+    for name in names:
+        value = to_int(row.get(name))
+        if value is not None:
+            return value
+    return None
+
+
+def row_bool(row: pd.Series, *names: str) -> int:
+    value = row_text(row, *names)
+    return 1 if re.search(r"新增|是|true|1", value, re.I) else 0
+
+
+def is_valid_plan_row(row: pd.Series) -> bool:
+    return bool(
+        row_text(row, "院校名称", "招生单位", "学校名称")
+        and row_text(row, "专业名称", "专业全称", "招生专业")
+        and row_int(row, "计划人数", "计划数", "招生计划") is not None
+    )
+
+
+def is_valid_major_stat_row(row: pd.Series) -> bool:
+    return bool(
+        row_text(row, "院校名称", "招生单位", "学校名称")
+        and row_text(row, "专业名称", "专业全称", "招生专业")
+        and (
+            row_int(row, "最低分", "最低分1", "投档最低分") is not None
+            or row_int(row, "最低位次", "最低位次1", "最低排名") is not None
+        )
+    )
+
+
 def build_subject_hints(csv_paths: list[Path], file_index: dict[str, dict[str, Any]]) -> dict[str, str]:
     """Infer subject group for ordinary batch files when the official page exposes two unnamed attachments.
 
@@ -490,8 +605,12 @@ def import_raw_tables_and_admission(con: sqlite3.Connection, out_dir: Path, file
     csv_paths = sorted((out_dir / "processed" / "tables").rglob("*.csv"))
     subject_hints = build_subject_hints(csv_paths, file_index)
     admission_rows = []
+    plan_rows = []
+    stat_rows = []
     raw_rows = []
     seen_admission: set[str] = set()
+    seen_plan: set[str] = set()
+    seen_stat: set[str] = set()
     seen_table: set[str] = set()
 
     for csv_path in csv_paths:
@@ -529,6 +648,126 @@ def import_raw_tables_and_admission(con: sqlite3.Connection, out_dir: Path, file
                 imported_at,
             )
         )
+
+        if category == "enrollment_plan":
+            batch = batch_from_title(title) or row_text(df.iloc[0], "批次", "录取批次") if not df.empty else batch_from_title(title)
+            subject = subject_from_source(f"{title} {source_info.get('link_text', '')}", source_info.get("filename", ""))
+            for _, row in df.iterrows():
+                if not is_valid_plan_row(row):
+                    continue
+                row_subject = subject_from_source(row_text(row, "科类", "科目", "生源地")) or subject
+                school_code = row_text(row, "院校代号", "院校代码", "学校代码")
+                school_name = row_text(row, "院校名称", "招生单位", "学校名称")
+                major_code = row_text(row, "专业代号", "专业代码")
+                major_name = row_text(row, "专业名称", "招生专业")
+                major_full_name = row_text(row, "专业全称", "专业名称")
+                plan_count = row_int(row, "计划人数", "计划数", "招生计划")
+                key = "|".join(
+                    [
+                        str(year or ""),
+                        batch or "",
+                        row_subject or "",
+                        school_code,
+                        school_name,
+                        major_code,
+                        major_name,
+                        str(plan_count or ""),
+                        source_info.get("article_url") or "",
+                    ]
+                )
+                record_id = hashlib.sha256(key.encode("utf-8")).hexdigest()
+                if record_id in seen_plan:
+                    continue
+                seen_plan.add(record_id)
+                plan_rows.append(
+                    (
+                        record_id,
+                        year,
+                        PROVINCE,
+                        batch,
+                        row_subject,
+                        row_text(row, "计划类别"),
+                        school_code,
+                        school_name,
+                        major_code,
+                        major_name,
+                        major_full_name,
+                        row_text(row, "专业备注", "备注"),
+                        row_text(row, "专业层次", "层次"),
+                        row_text(row, "选科要求", "选考科目", "首选科目", "再选科目"),
+                        plan_count,
+                        row_text(row, "学制"),
+                        row_int(row, "学费", "收费标准"),
+                        row_text(row, "门类", "学科门类"),
+                        row_text(row, "专业类"),
+                        row_bool(row, "是否新增", "新增"),
+                        source_info.get("local_path") or clean_text(row.get("source_file")),
+                        source_info.get("article_url"),
+                        clean_text(row.get("source_sheet")),
+                        "official_or_imported_plan",
+                        imported_at,
+                    )
+                )
+            continue
+
+        if category == "major_admission_stats":
+            batch = batch_from_title(title) or row_text(df.iloc[0], "批次", "录取批次") if not df.empty else batch_from_title(title)
+            subject = subject_from_source(f"{title} {source_info.get('link_text', '')}", source_info.get("filename", ""))
+            for _, row in df.iterrows():
+                if not is_valid_major_stat_row(row):
+                    continue
+                row_subject = subject_from_source(row_text(row, "科类", "科目", "生源地")) or subject
+                school_code = row_text(row, "院校代号", "院校代码", "学校代码")
+                school_name = row_text(row, "院校名称", "招生单位", "学校名称")
+                major_code = row_text(row, "专业代号", "专业代码")
+                major_name = row_text(row, "专业名称", "招生专业")
+                min_score = row_int(row, "最低分", "最低分1", "投档最低分")
+                min_rank = row_int(row, "最低位次", "最低位次1", "最低排名")
+                key = "|".join(
+                    [
+                        str(year or ""),
+                        batch or "",
+                        row_subject or "",
+                        school_code,
+                        school_name,
+                        major_code,
+                        major_name,
+                        str(min_score or ""),
+                        str(min_rank or ""),
+                        source_info.get("article_url") or "",
+                    ]
+                )
+                record_id = hashlib.sha256(key.encode("utf-8")).hexdigest()
+                if record_id in seen_stat:
+                    continue
+                seen_stat.add(record_id)
+                stat_rows.append(
+                    (
+                        record_id,
+                        year,
+                        PROVINCE,
+                        batch,
+                        row_subject,
+                        school_code,
+                        school_name,
+                        major_code,
+                        major_name,
+                        row_text(row, "专业全称", "专业名称"),
+                        row_int(row, "录取人数", "录取数"),
+                        min_score,
+                        min_rank,
+                        row_int(row, "平均分", "平均分1"),
+                        row_int(row, "平均位次", "平均位次1"),
+                        row_int(row, "最高分", "最高分1"),
+                        row_int(row, "最高位次", "最高位次1"),
+                        source_info.get("local_path") or clean_text(row.get("source_file")),
+                        source_info.get("article_url"),
+                        clean_text(row.get("source_sheet")),
+                        "official_or_imported_major_stats",
+                        imported_at,
+                    )
+                )
+            continue
 
         if category != "admission_line":
             continue
@@ -613,6 +852,26 @@ def import_raw_tables_and_admission(con: sqlite3.Connection, out_dir: Path, file
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         admission_rows,
+    )
+    con.executemany(
+        """
+        INSERT OR REPLACE INTO enrollment_plan
+        (id, year, province, batch, subject_group, plan_category, school_code, school_name, major_code, major_name,
+         major_full_name, major_remark, level, selection_requirement, plan_count, duration, tuition,
+         discipline_category, major_category, is_new_major, source_file, source_url, source_sheet, confidence_level, imported_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        plan_rows,
+    )
+    con.executemany(
+        """
+        INSERT OR REPLACE INTO major_admission_stats
+        (id, year, province, batch, subject_group, school_code, school_name, major_code, major_name, major_full_name,
+         admission_count, min_score, min_rank, avg_score, avg_rank, max_score, max_rank,
+         source_file, source_url, source_sheet, confidence_level, imported_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        stat_rows,
     )
     con.commit()
 
@@ -1019,7 +1278,17 @@ def import_batch_lines_from_html(con: sqlite3.Connection, out_dir: Path) -> None
 
 def write_summary(con: sqlite3.Connection) -> None:
     summary = {}
-    for table in ["source_files", "attachment_links", "raw_tables", "admission_line", "score_rank_table", "batch_line", "ocr_text_blocks"]:
+    for table in [
+        "source_files",
+        "attachment_links",
+        "raw_tables",
+        "admission_line",
+        "enrollment_plan",
+        "major_admission_stats",
+        "score_rank_table",
+        "batch_line",
+        "ocr_text_blocks",
+    ]:
         summary[table] = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     for key, value in summary.items():
         con.execute("INSERT OR REPLACE INTO build_summary(key, value) VALUES (?, ?)", (key, str(value)))
