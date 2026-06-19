@@ -1133,11 +1133,30 @@ function getTargetDistribution(total, familyTarget = "稳妥录取") {
 }
 
 function buildLeadSummary(formData, summary, diagnoses) {
-  const topItems = diagnoses
-    .filter((item) => /替换|删除|谨慎|复核/.test(item.action))
+  const clueItems = diagnoses
+    .filter((item) => {
+      const flags = item.flags || {};
+      return item.ranks.source !== "public-data" || flags.selectionMismatch || flags.retreatRisk || flags.highFeeRisk || flags.planScarcity || flags.newMajor;
+    })
     .slice(0, 5)
-    .map((item) => `第${item.orderNo}志愿 ${item.schoolName}+${item.majorName}：${item.action}`)
+    .map((item) => {
+      const flags = item.flags || {};
+      const clues = [
+        item.ranks.source === "public-data" ? "命中公开记录" : "需补充公开证据",
+        flags.selectionMismatch ? "选科需核验" : "",
+        flags.retreatRisk ? "退档风险线索" : "",
+        flags.highFeeRisk ? "费用/性质需确认" : "",
+        flags.planScarcity ? "计划数偏少" : "",
+        flags.newMajor ? "新增专业波动" : ""
+      ]
+        .filter(Boolean)
+        .join("、");
+      return `第${item.orderNo}志愿 ${item.schoolName}+${item.majorName}：${clues}`;
+    })
     .join("\n");
+  const publicMatched = diagnoses.filter((item) => item.ranks.source === "public-data").length;
+  const scoreOnly = diagnoses.filter((item) => item.ranks.source === "score-only").length;
+  const estimated = diagnoses.filter((item) => item.ranks.source === "estimated").length;
 
   return `河北志愿表风险体检咨询
 年份：${formData.year}
@@ -1149,10 +1168,10 @@ function buildLeadSummary(formData, summary, diagnoses) {
 民办/中外合作/偏远城市：${formData.acceptPrivate || "未填"} / ${formData.acceptCoop || "未填"} / ${formData.acceptRemote || "未填"}
 志愿数量：${summary.total}条
 结构概览：极冲${summary.extremeRush}、冲${summary.rushOnly}、小冲${summary.smallRush}、稳${summary.stable}、保${summary.safeOnly}、垫${summary.cushion}
-整体等级：${summary.grade}
-高风险志愿：${summary.high}条
-优先处理：
-${topItems || "暂无明显高风险项，建议接入官方数据后复核。"}
+公开证据覆盖：直接命中${publicMatched}条，分数记录${scoreOnly}条，需复核${estimated}条
+计划/专业统计：招生计划${summary.planMatched}条，专业统计${summary.statMatched}条
+重点复核线索：
+${clueItems || "暂无明显证据缺口，最终概率和去留建议以AI完整报告为准。"}
 上传文件：${formData.selectedFileName || "未上传"}
 `;
 }
@@ -1384,11 +1403,10 @@ function renderAiReport(content, meta = {}) {
   target.innerHTML = `
     <div class="ai-complete-report" id="completeReportExport">
       <div class="ai-report-head">
-        <span>完整解读报告</span>
-        <strong>${escapeHTML(meta.model ? "AI已生成" : "规则解读")}</strong>
+        <span>完整志愿风险报告</span>
+        <strong>${escapeHTML(meta.model ? "AI已生成" : "AI报告")}</strong>
       </div>
-      ${buildStructuredReportHTML()}
-      <div class="ai-section-title">AI家长版解释</div>
+      <div class="ai-section-title">家长版完整解读</div>
       <div class="ai-report-body">${markdownToHTML(content)}</div>
     </div>
     <div class="ai-report-actions">
@@ -1439,108 +1457,14 @@ async function refreshReportPayloadForAi() {
   return latestReportPayload;
 }
 
-async function requestAiPreview(payload) {
-  const response = await fetchWithTimeout(
-    "/api/ai-checkup",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, licenseCode: getLicenseCode() })
-    },
-    120000
-  );
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    throw new Error(data.error || "AI初步复核失败");
-  }
-  if (data.license) {
-    latestLicenseState = data.license;
-    latestVerifiedLicenseCode = normalizeEnteredLicenseCode(getLicenseCode());
-    renderLicenseStatus(describeLicense(data.license), "success");
-  }
-  return {
-    content: data.content || "",
-    model: data.model || "",
-    generatedAt: new Date().toISOString()
-  };
-}
-
-async function generateAiReport(button) {
-  if (!latestReportPayload) {
-    toast("请先生成逐条风险预览");
-    return;
-  }
-  const licenseCode = getLicenseCode();
-  if (!licenseCode) {
-    renderLicenseStatus("生成完整报告需要授权码。请先输入并验证顾问发送的报告码。", "warn");
-    toast("请输入授权码");
-    document.querySelector("#licenseCode")?.focus();
-    return;
-  }
-
-  try {
-    await ensureLicenseReady();
-  } catch (error) {
-    renderAiStatus("授权码未通过校验，未进行公开数据二次匹配，也不会生成完整报告。", "error");
-    toast("请先验证授权码");
-    return;
-  }
-
-  const originalHTML = button?.innerHTML;
-  if (button) {
-    button.disabled = true;
-    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 二次匹配中';
-    createIcons();
-  }
-  renderAiStatus("正在重新匹配公开投档数据，匹配成功后将生成 AI 智能完整报告。");
-
-  let rematchCompleted = false;
-  try {
-    const refreshedPayload = await refreshReportPayloadForAi();
-    rematchCompleted = true;
-    renderAiStatus(
-      `二次匹配完成：${refreshedPayload.aiRematch.publicMatchedCount}条直接命中公开记录，${refreshedPayload.aiRematch.estimatedCount}条需要人工复核。正在生成完整报告。`
-    );
-    if (button) {
-      button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 报告生成中';
-      createIcons();
-    }
-    const response = await fetch("/api/ai-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...refreshedPayload, licenseCode })
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || "AI报告生成失败");
-    }
-    latestLicenseState = data.license || latestLicenseState;
-    if (data.license) {
-      renderLicenseStatus(describeLicense(data.license), "success");
-    }
-    renderAiReport(data.content, { model: data.model });
-    toast("完整报告已生成");
-  } catch (error) {
-    const prefix = rematchCompleted ? "二次匹配已完成，但完整报告生成未继续：" : "";
-    const cleanMessage = String(error.message || "未知错误").replace(/[。.!！]+$/, "");
-    renderAiStatus(`${prefix}${cleanMessage}。完整报告未生成时不会扣减授权码；如果已付款，请联系顾问核对。`, "error");
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.innerHTML = originalHTML || '<i data-lucide="sparkles" aria-hidden="true"></i> 生成完整报告';
-      createIcons();
-    }
-  }
-}
-
-function renderReportLoading(message = "正在读取河北公开数据并匹配志愿表。") {
+function renderReportLoading(message = "正在验证授权码并整理志愿表证据。") {
   const target = document.querySelector("#liveReport");
   if (!target) return;
   target.innerHTML = `
     <div class="live-empty live-loading">
       <i data-lucide="loader-circle" aria-hidden="true"></i>
       <h3>${escapeHTML(message)}</h3>
-      <p>系统会优先匹配一分一档、批次线和近年投档记录；缺少证据的志愿会提示人工复核。</p>
+      <p>授权码通过后才会匹配公开数据，并把志愿表、招生计划、专业统计和家庭条件交给AI生成完整报告。</p>
     </div>
   `;
   createIcons();
@@ -1552,8 +1476,8 @@ function renderReportError(message) {
   const isLicenseError = /授权码|报告码|输入/.test(String(message || ""));
   const title = isLicenseError ? "需要先验证授权码" : "暂时无法读取公开数据";
   const detail = isLicenseError
-    ? `${message}。验证通过后，系统才会开始匹配公开投档数据并生成风险预览。`
-    : `${message}。可以先联系顾问核对数据状态，完整结论建议由顾问复核。`;
+    ? `${message}。验证通过后，系统才会开始匹配公开投档数据并生成AI完整报告。`
+    : `${message}。可以先联系顾问核对数据状态，完整结论建议在公开证据和AI报告基础上复核。`;
   target.innerHTML = `
     <div class="live-empty">
       <i data-lucide="circle-alert" aria-hidden="true"></i>
@@ -1571,7 +1495,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("公开数据匹配超时，已切换为基础风险预览");
+      throw new Error("公开数据匹配超时，暂未生成AI完整报告");
     }
     throw error;
   } finally {
@@ -1610,26 +1534,6 @@ function buildEvidencePreview(item) {
     return "匹配到公开分数记录，但缺少可直接比较的位次字段，建议人工复核。";
   }
   return "本条未在当前收录数据中精确命中该校该专业近年位次，系统已尝试别名、专业简称、批次放宽和更早年份，当前仅作为结构预览。";
-}
-
-function renderAiPreviewBlock(aiPreview) {
-  if (aiPreview?.content) {
-    return `
-      <div class="diagnosis-card ai-preview-card">
-        <span><i data-lucide="sparkles" aria-hidden="true"></i> AI初步复核</span>
-        <div class="ai-preview-body">${markdownToHTML(aiPreview.content)}</div>
-      </div>
-    `;
-  }
-  if (aiPreview?.error) {
-    return `
-      <div class="diagnosis-card ai-preview-card warning">
-        <span><i data-lucide="circle-alert" aria-hidden="true"></i> AI初步复核未完成</span>
-        <p>${escapeHTML(aiPreview.error)}。规则预览仍可查看，完整报告会再次调用AI复核。</p>
-      </div>
-    `;
-  }
-  return "";
 }
 
 function renderDiagnosisDetailCard(item) {
@@ -1703,114 +1607,65 @@ async function renderReport(formData) {
   formData.licenseCode = getLicenseCode();
   const sourceRows = parseVolunteers(formData.volunteers || sampleVolunteerText);
   const volunteers = sourceRows.length ? sourceRows : parseVolunteers(sampleVolunteerText);
-  renderReportLoading();
+  renderReportLoading("授权码已通过，正在匹配公开数据并整理AI报告证据。");
   let dataContext = {};
   try {
     dataContext = await requestDataContext(formData, volunteers);
   } catch (error) {
     renderReportError(error.message);
-    toast("公开数据读取失败，已降级为基础预览");
+    toast("公开数据读取失败，暂未生成报告");
+    throw error;
   }
 
   const diagnoses = volunteers.map((volunteer) => diagnoseVolunteer(volunteer, formData, dataContext));
   const summary = buildStructureSummary(diagnoses);
-  let aiPreview = null;
-  const previewPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext };
-  try {
-    renderReportLoading("公开数据匹配完成，正在交给AI复核志愿结构与概率判断。");
-    aiPreview = await requestAiPreview(previewPayload);
-  } catch (error) {
-    aiPreview = { error: error.message || "AI初步复核暂不可用" };
-  }
   latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
-  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiPreview };
-
-  const previewItems = diagnoses;
-  const priorityItems = diagnoses
-    .slice()
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 5);
+  const aiRematch = {
+    mode: "direct-ai-full-report",
+    refreshedAt: new Date().toISOString(),
+    volunteerCount: volunteers.length,
+    publicMatchedCount: diagnoses.filter((item) => item.ranks.source === "public-data").length,
+    scoreOnlyCount: diagnoses.filter((item) => item.ranks.source === "score-only").length,
+    estimatedCount: diagnoses.filter((item) => item.ranks.source === "estimated").length
+  };
+  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiRematch };
 
   document.querySelector("#liveReport").innerHTML = `
-    <div class="live-result">
+    <div class="live-result ai-direct-result">
       <div class="result-head">
         <div>
-          <span class="eyebrow">河北志愿表风险体检</span>
+          <span class="eyebrow">AI完整报告生成中</span>
           <h3>${escapeHTML(formData.subject)} / ${escapeHTML(formData.batch)} / ${summary.total}条志愿</h3>
-          <p class="result-subtitle">参考公开数据年份：${escapeHTML(dataContext.dataYear || "待匹配")}；${dataContext.scoreRank ? `当前分数约对应位次 ${dataContext.scoreRank.cumulative_rank}` : "位次以表单输入为准"}</p>
+          <p class="result-subtitle">参考公开数据年份：${escapeHTML(dataContext.dataYear || "待匹配")}；${dataContext.scoreRank ? `当前分数约对应位次 ${dataContext.scoreRank.cumulative_rank}` : "位次以表单输入为准"}。AI将根据当前志愿分布独立判断录取概率、合理性和去留建议。</p>
         </div>
-        <div class="result-score">
-          <span>整表风险</span>
-          <strong>${escapeHTML(String(summary.grade || "待判断").split(" ")[0])}</strong>
+        <div class="result-score ai-score-badge">
+          <span>报告模式</span>
+          <strong>AI</strong>
         </div>
       </div>
 
       <div class="result-cards">
-        <article class="result-card"><span>冲刺志愿</span><strong>${summary.rush}</strong><small>极冲/冲/小冲</small></article>
-        <article class="result-card"><span>较稳概率</span><strong>${summary.likelySafe}</strong><small>概率区间偏高</small></article>
-        <article class="result-card"><span>保底垫底</span><strong>${summary.safe}</strong><small>保/垫</small></article>
-        <article class="result-card"><span>需处理</span><strong>${summary.replace}</strong><small>替换/删除/下移</small></article>
+        <article class="result-card"><span>志愿数量</span><strong>${summary.total}</strong><small>按当前顺序分析</small></article>
+        <article class="result-card"><span>公开记录</span><strong>${aiRematch.publicMatchedCount}</strong><small>直接命中投档记录</small></article>
+        <article class="result-card"><span>计划/统计</span><strong>${summary.planMatched + summary.statMatched}</strong><small>辅助判断专业热度</small></article>
+        <article class="result-card"><span>需复核线索</span><strong>${aiRematch.estimatedCount}</strong><small>由AI降级说明</small></article>
       </div>
 
       <div class="diagnosis-card">
-        <span>整表结构诊断</span>
-        <h4>${escapeHTML(summary.grade)}</h4>
-        ${summary.comments.map((comment) => `<p>${escapeHTML(comment)}</p>`).join("")}
-      </div>
-
-      ${renderAiPreviewBlock(aiPreview)}
-
-      <div class="diagnosis-card structured-preview-card">
-        <span>冲稳保垫分布</span>
-        <p>以下区间只是结构参照，不要求用户完全照做；系统会结合当前志愿真实分布、概率区间和家庭偏好动态判断。</p>
-        ${tableHTML(["层次", "当前数量", "参考区间", "动态判断"], getDistributionRows(summary))}
-      </div>
-
-      <div class="diagnosis-card structured-preview-card">
-        <span>风险统计</span>
-        ${tableHTML(["指标", "数量", "说明"], [
-          ["无效风险", summary.invalid, "不建议或需删除项"],
-          ["高退档风险", summary.retreatRisk, "选科/批次等硬性风险"],
-          ["高学费风险", summary.highFeeRisk, "民办/中外合作/高收费冲突"],
-          ["选科不匹配", summary.selectionMismatch, "需核验专业选科要求"],
-          ["招生计划命中", summary.planMatched, "可参考计划人数、学费、学制、选科要求"],
-          ["专业统计命中", summary.statMatched, "可参考最低/平均/最高位次与录取人数"],
-          ["小计划/新增压力", summary.planScarcity + summary.newMajor, "小计划和新增专业波动更大"],
-          ["平均位次压力", summary.avgRankPressureCount, "平均录取位次明显优于当前位次"],
-          ["公开记录命中", summary.publicMatched, "证据更强"],
-          ["需人工复核", summary.needReview, "不能包装成确定结论"]
-        ])}
-      </div>
-
-      <div class="diagnosis-section-head">
-        <div>
-          <span>逐条志愿分析</span>
-          <strong>已覆盖全部${summary.total}条志愿</strong>
-        </div>
-        <small>每条都包含合理性、去留建议、概率区间、风险原因和证据状态。</small>
-      </div>
-
-      ${renderRiskOverviewWindow(previewItems, summary)}
-
-      <div class="diagnosis-card">
-        <span>优先修改清单</span>
-        ${priorityItems
-          .map((item) => `<p>第${item.orderNo}志愿：${escapeHTML(item.schoolName)} + ${escapeHTML(item.majorName)}，${escapeHTML(item.action)}。</p>`)
-          .join("")}
+        <span>生成逻辑</span>
+        <h4>当前志愿分布只作为证据，不作为固定模板</h4>
+        <p>系统已完成授权码校验和公开数据匹配，正在把位次、计划、专业统计、选科限制、地域偏好、费用接受度和志愿顺序交给AI统一判断。</p>
+        <p>最终报告中的录取概率、合理性和“保留/下移/替换/删除”建议由AI生成；缺少公开证据的条目会标记为需复核，不会包装成确定结论。</p>
       </div>
 
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
-          <i data-lucide="sparkles" aria-hidden="true"></i>
-          <span>逐条体检和AI初步复核已完成。完整报告会再次安全校验授权码，并在生成成功后扣减次数。</span>
+          <i data-lucide="loader-circle" aria-hidden="true"></i>
+          <span>AI正在生成完整报告。报告成功返回后才会扣减授权码次数。</span>
         </div>
       </div>
 
-      <div class="next-actions">
-        <button class="solid-button" type="button" data-ai-report>
-          <i data-lucide="sparkles" aria-hidden="true"></i>
-          生成完整报告
-        </button>
+      <div class="next-actions ai-direct-actions">
         <button class="solid-button" type="button" data-open-modal="contactModal" data-package="河北96志愿完整报告">
           <i data-lucide="message-square-text" aria-hidden="true"></i>
           咨询完整报告
@@ -1819,15 +1674,36 @@ async function renderReport(formData) {
           <i data-lucide="copy" aria-hidden="true"></i>
           复制体检摘要
         </button>
-        <button class="outline-button" type="button" data-export-pdf>
-          <i data-lucide="download" aria-hidden="true"></i>
-          生成完整报告后导出PDF
-        </button>
       </div>
     </div>
   `;
 
   createIcons();
+
+  try {
+    const response = await fetchWithTimeout(
+      "/api/ai-report",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...latestReportPayload, licenseCode: getLicenseCode() })
+      },
+      180000
+    );
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "AI完整报告生成失败");
+    }
+    latestLicenseState = data.license || latestLicenseState;
+    if (data.license) {
+      renderLicenseStatus(describeLicense(data.license), "success");
+    }
+    renderAiReport(data.content, { model: data.model });
+    toast("AI完整报告已生成");
+  } catch (error) {
+    const cleanMessage = String(error.message || "未知错误").replace(/[。.!！]+$/, "");
+    renderAiStatus(`${cleanMessage}。完整报告未成功返回时不会扣减授权码；如果已付款，请联系顾问核对。`, "error");
+  }
 }
 
 async function copyLeadSummary() {
@@ -1847,25 +1723,54 @@ async function copyLeadSummary() {
   }
 }
 
-function exportReportPdf() {
+async function exportReportPdf() {
   const report = document.querySelector("#completeReportExport");
   if (!report) {
     toast("请先生成完整报告，再导出PDF");
     return;
   }
-  document.body.classList.add("print-complete-report-mode");
-  const originalTitle = document.title;
-  document.title = `寻鹿升学-完整志愿风险报告-${new Date().toISOString().slice(0, 10)}`;
-  const cleanup = () => {
-    document.body.classList.remove("print-complete-report-mode");
-    document.title = originalTitle;
-    window.removeEventListener("afterprint", cleanup);
+  if (typeof window.html2pdf !== "function") {
+    toast("PDF导出组件加载失败，请刷新页面后重试");
+    return;
+  }
+
+  const exportRoot = document.createElement("div");
+  exportRoot.className = "pdf-export-root";
+  const reportCopy = report.cloneNode(true);
+  reportCopy.id = "completeReportExportPdf";
+  reportCopy.classList.add("pdf-export-copy");
+  exportRoot.appendChild(reportCopy);
+  document.body.appendChild(exportRoot);
+
+  const filename = `寻鹿升学-完整志愿风险报告-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const options = {
+    margin: [8, 8, 10, 8],
+    filename,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794
+    },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    pagebreak: {
+      mode: ["css", "legacy"],
+      avoid: [".ai-report-head", ".ai-section-title", ".ai-table-wrap", "table", "tr", "h1", "h2", "h3"]
+    }
   };
-  window.addEventListener("afterprint", cleanup);
-  window.setTimeout(() => {
-    window.print();
-    window.setTimeout(cleanup, 1200);
-  }, 80);
+
+  try {
+    toast("正在生成PDF");
+    await window.html2pdf().set(options).from(reportCopy).save();
+    toast("PDF已生成");
+  } catch (error) {
+    toast(error.message || "PDF生成失败，请稍后重试");
+  } finally {
+    exportRoot.remove();
+  }
 }
 
 function toast(message) {
@@ -2223,7 +2128,7 @@ function updateVolunteerSummary(summary = {}) {
   if (detailNode) {
     detailNode.textContent =
       count > 0
-        ? `当前将按${count}条志愿生成预览报告；如需调整顺序，请先进入志愿表页面。`
+        ? `当前将按${count}条志愿生成AI完整报告；如需调整顺序，请先进入志愿表页面。`
         : "尚未识别到完整志愿，请先上传 Excel/CSV 或在线录入。";
   }
   if (statusNode) {
@@ -2232,7 +2137,7 @@ function updateVolunteerSummary(summary = {}) {
         ? "志愿数量已接近完整表，建议重点检查最后20个保底和垫底志愿。"
         : count > 0
           ? "已读取志愿表，数量较少时请确认是否只是局部测试或预览。"
-          : "请先确认志愿表顺序，再生成风险预览。";
+          : "请先确认志愿表顺序，再生成AI完整报告。";
   }
 }
 
@@ -2447,7 +2352,7 @@ function initInteractions() {
     const original = submit?.innerHTML;
     if (submit) {
       submit.disabled = true;
-      submit.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 正在匹配公开数据';
+      submit.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 正在生成AI完整报告';
       createIcons();
     }
     syncVolunteerTextareaFromTable();
@@ -2461,7 +2366,7 @@ function initInteractions() {
     } finally {
       if (submit) {
         submit.disabled = false;
-        submit.innerHTML = original || '<i data-lucide="activity" aria-hidden="true"></i> 验证授权码并生成风险预览';
+        submit.innerHTML = original || '<i data-lucide="activity" aria-hidden="true"></i> 验证授权码并生成AI完整报告';
         createIcons();
       }
     }
@@ -2503,12 +2408,6 @@ function initInteractions() {
         .filter(Boolean)
         .join("\n");
       if (text) copyPlainText(text, "已复制全部授权码");
-      return;
-    }
-
-    const aiButton = event.target.closest("[data-ai-report]");
-    if (aiButton) {
-      generateAiReport(aiButton);
       return;
     }
 

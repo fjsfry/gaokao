@@ -971,6 +971,36 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
     form = payload.get("formData") or {}
     summary = payload.get("summary") or {}
     diagnoses = payload.get("diagnoses") or []
+    evidence_sources = [(item.get("ranks") or {}).get("source") for item in diagnoses]
+
+    compact_summary = {
+        "total": summary.get("total"),
+        "volunteer_distribution_clue": {
+            "extreme_rush": summary.get("extremeRush"),
+            "rush": summary.get("rushOnly"),
+            "small_rush": summary.get("smallRush"),
+            "stable": summary.get("stable"),
+            "safe": summary.get("safeOnly"),
+            "cushion": summary.get("cushion"),
+            "reference_range": summary.get("referenceRange"),
+            "note": "该分布仅为粗略结构线索，不是要求用户机械照做的最终方案。",
+        },
+        "evidence_counts": {
+            "public_data_count": evidence_sources.count("public-data"),
+            "score_only_count": evidence_sources.count("score-only"),
+            "estimated_count": evidence_sources.count("estimated"),
+            "enrollment_plan_count": summary.get("planMatched"),
+            "major_admission_stats_count": summary.get("statMatched"),
+        },
+        "risk_clues": {
+            "selection_mismatch": summary.get("selectionMismatch"),
+            "retreat_risk": summary.get("retreatRisk"),
+            "high_fee_or_property_risk": summary.get("highFeeRisk"),
+            "scarce_plan_or_new_major": (summary.get("planScarcity") or 0) + (summary.get("newMajor") or 0),
+            "avg_rank_pressure": summary.get("avgRankPressureCount"),
+            "need_review": summary.get("needReview"),
+        },
+    }
 
     compact_diagnoses = []
     for item in diagnoses[:96]:
@@ -980,12 +1010,7 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "school_name": item.get("schoolName"),
                 "major_name": item.get("majorName"),
                 "batch": item.get("batch"),
-                "risk_level": (item.get("risk") or {}).get("label"),
                 "volunteer_type": item.get("type"),
-                "action": item.get("action"),
-                "qualification": item.get("qualification"),
-                "score": item.get("score"),
-                "admission_probability": item.get("probability") or {},
                 "evidence_source": (item.get("ranks") or {}).get("source"),
                 "match_count": (item.get("ranks") or {}).get("matchCount"),
                 "flags": item.get("flags") or {},
@@ -1000,8 +1025,6 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "major_admission_stats": item.get("majorStatEvidence") or {},
             }
         )
-
-    evidence_sources = [(item.get("ranks") or {}).get("source") for item in diagnoses]
 
     return {
         "student": {
@@ -1023,7 +1046,7 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "preferred_major": form.get("preferredMajor"),
             "avoid_major": form.get("avoidMajor"),
         },
-        "summary": summary,
+        "summary": compact_summary,
         "evidence_audit": {
             "ai_rematch": payload.get("aiRematch") or {},
             "public_data_count": evidence_sources.count("public-data"),
@@ -1031,7 +1054,7 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "estimated_count": evidence_sources.count("estimated"),
             "enrollment_plan_count": sum(1 for item in diagnoses if item.get("planEvidence")),
             "major_admission_stats_count": sum(1 for item in diagnoses if item.get("majorStatEvidence")),
-            "rule": "AI报告必须以该证据审计为边界；estimated只能给复核建议，不得写成已匹配投档数据。",
+            "rule": "AI报告必须以该证据审计为边界；diagnoses只提供公开数据取证、风险线索和可疑点，不提供最终概率或去留结论；estimated只能给复核建议，不得写成已匹配投档数据。",
         },
         "diagnoses": compact_diagnoses,
     }
@@ -1053,8 +1076,8 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "如果输入中包含 enrollment_plan，必须把计划人数、选科要求、学费、学制、新增专业等作为可报性和波动风险证据。"
                 "如果输入中包含 major_admission_stats，必须把最低位次、平均位次、最高位次和录取人数用于判断专业热度与稳定性。"
                 "如果这些增强资料为空，必须写明未命中公开计划/专业统计，不得自行补造。"
-                "输入中 admission_probability 是系统根据公开数据、位次差、风险项和证据强度估算出的概率区间，"
-                "你必须把它作为每条志愿的参考概率来解释，但不得写成保证录取。"
+                "输入中的 diagnoses 是公开数据取证和风险线索，不是最终结论；"
+                "每条志愿的录取概率区间、合理性判断和保留/下移/替换/删除建议必须由你基于证据独立生成。"
                 "不得使用“保证录取”“一定录取”“绝对安全”等表述。"
                 "如果某条没有匹配到足够公开投档记录，必须说明已降级为结构判断，建议核验官方招生计划、院校章程、近年投档线和专业组选科要求。"
                 "输入中的 evidence_audit 是完整报告生成前重新匹配后的证据审计结果，必须在总评中说明直接命中、分数记录和需复核的大致情况。"
@@ -1068,7 +1091,7 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
         {
             "role": "user",
             "content": (
-                "请根据下面的规则引擎结果，生成一份面向家长的河北志愿表风险体检报告。"
+                "请根据下面授权码验证后重新匹配的公开数据、招生计划、专业统计和风险线索，生成一份面向家长的河北志愿表风险体检报告。"
                 "逐条诊断摘要必须展示全部志愿，不能只展示前几条；如果志愿较多，逐条表格每条一行即可。"
                 "需要明确输出每条志愿的录取概率区间、合理性判断，并明确四类动作：保留、下移、替换、删除。"
                 "冲稳保垫参考分布只作为参照，不要强迫用户机械按模板调整；请根据当前真实分布动态判断是否合理。"
@@ -1088,7 +1111,7 @@ def build_preview_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "你是河北高考志愿风险初步复核助手。"
                 "你的任务是在完整报告前，对系统已经匹配的公开数据和逐条规则诊断做一次面向家长的短复核。"
                 "冲稳保垫分布只能作为参考，不能要求用户机械照做。"
-                "必须使用 admission_probability 概率区间解释风险，且不得使用保证录取、一定录取、绝对安全等表述。"
+                "每条概率区间和去留建议必须由AI根据证据独立判断，且不得使用保证录取、一定录取、绝对安全等表述。"
                 "不要虚构学校、专业、分数、位次、招生计划或来源。"
                 "输出Markdown，控制在600字以内，必须包含一个3到6行表格。"
             ),
@@ -1290,7 +1313,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             license_code = payload.get("licenseCode") or form_data.get("licenseCode")
             if not license_code:
                 self.write_json(
-                    {"ok": False, "licenseRequired": True, "error": "请先输入并验证授权码，再进行AI初步复核。"},
+                    {"ok": False, "licenseRequired": True, "error": "请先输入并验证授权码，再进行AI复核。"},
                     status=HTTPStatus.PAYMENT_REQUIRED,
                 )
                 return
@@ -1345,7 +1368,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 choices = data.get("choices") or []
                 content = (choices[0].get("message") or {}).get("content") if choices else ""
                 if not content:
-                    raise RuntimeError("AI初步复核未返回有效内容。")
+                    raise RuntimeError("AI复核未返回有效内容。")
                 self.write_json(
                     {
                         "ok": True,
@@ -1361,7 +1384,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     detail = exc.response.json()
                 except Exception:
                     detail = exc.response.text[:500] if exc.response is not None else str(exc)
-                self.write_json({"ok": False, "error": "AI初步复核暂不可用，请稍后重试。", "detail": detail}, status=status)
+                self.write_json({"ok": False, "error": "AI复核暂不可用，请稍后重试。", "detail": detail}, status=status)
             except Exception as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return
@@ -1441,7 +1464,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "thinking": {"type": os.environ.get("DEEPSEEK_THINKING", "enabled")},
             "reasoning_effort": os.environ.get("DEEPSEEK_REASONING_EFFORT", "high"),
             "temperature": 0.2,
-            "max_tokens": 5200,
+            "max_tokens": 8200,
             "stream": False,
         }
 

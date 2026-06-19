@@ -8,35 +8,37 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260619-ai-flow-v1" />
+    <meta name="app-version" content="20260619-nav-ai-pdf-v1" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260619-ai-flow-v1" />
+    <link rel="stylesheet" href="./styles.css?v=20260619-nav-ai-pdf-v1" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#/home" aria-label="寻鹿升学首页">
-        <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
-        <span class="brand-copy">
-          <strong>寻鹿升学</strong>
-          <small>高考志愿决策平台</small>
-        </span>
-      </a>
-      <nav class="main-nav" aria-label="主导航">
-        <a href="#/home" data-nav-view="home"><i data-lucide="home" aria-hidden="true"></i>首页</a>
-        <a href="#/product" data-nav-view="product"><i data-lucide="panel-top" aria-hidden="true"></i>产品介绍</a>
-        <a href="#/checkup" data-nav-view="checkup"><i data-lucide="activity" aria-hidden="true"></i>在线评估</a>
-        <a href="#/volunteers" data-nav-view="volunteers"><i data-lucide="table-2" aria-hidden="true"></i>志愿表</a>
-        <a href="#/sample" data-nav-view="sample"><i data-lucide="file-text" aria-hidden="true"></i>报告样例</a>
-        <a href="#/pricing" data-nav-view="pricing"><i data-lucide="wallet" aria-hidden="true"></i>服务方案</a>
-      </nav>
-      <div class="header-actions">
-        <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="获取授权码">获取授权码</button>
-        <a class="solid-button compact" href="#/checkup">
-          <i data-lucide="sparkles" aria-hidden="true"></i>
-          输入授权码生成报告
+      <div class="site-header-inner">
+        <a class="brand" href="#/home" aria-label="寻鹿升学首页">
+          <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
+          <span class="brand-copy">
+            <strong>寻鹿升学</strong>
+            <small>高考志愿决策平台</small>
+          </span>
         </a>
+        <nav class="main-nav" aria-label="主导航">
+          <a href="#/home" data-nav-view="home"><i data-lucide="home" aria-hidden="true"></i>首页</a>
+          <a href="#/product" data-nav-view="product"><i data-lucide="panel-top" aria-hidden="true"></i>产品介绍</a>
+          <a href="#/checkup" data-nav-view="checkup"><i data-lucide="activity" aria-hidden="true"></i>在线评估</a>
+          <a href="#/volunteers" data-nav-view="volunteers"><i data-lucide="table-2" aria-hidden="true"></i>志愿表</a>
+          <a href="#/sample" data-nav-view="sample"><i data-lucide="file-text" aria-hidden="true"></i>报告样例</a>
+          <a href="#/pricing" data-nav-view="pricing"><i data-lucide="wallet" aria-hidden="true"></i>服务方案</a>
+        </nav>
+        <div class="header-actions">
+          <button class="ghost-button compact" type="button" data-open-modal="contactModal" data-package="获取授权码">获取授权码</button>
+          <a class="solid-button compact" href="#/checkup">
+            <i data-lucide="sparkles" aria-hidden="true"></i>
+            生成AI完整报告
+          </a>
+        </div>
       </div>
     </header>
 
@@ -171,9 +173,9 @@
       <section class="home-snapshot-section app-view" data-view="home" aria-labelledby="home-snapshot-title">
         <div class="snapshot-copy">
           <h2 id="home-snapshot-title">家长真正需要的是一份能讨论、能复核、能落地的报告</h2>
-          <p>授权码验证后，系统会先生成风险预览，再把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
+          <p>授权码验证后，系统会直接生成AI完整报告，把高风险志愿、证据来源、调整优先级和顾问沟通摘要整理出来，方便家庭在填报前集中解决关键问题。</p>
           <div class="snapshot-actions">
-            <a class="solid-button" href="#/checkup">输入授权码生成预览</a>
+            <a class="solid-button" href="#/checkup">输入授权码生成报告</a>
             <a class="outline-button" href="#/product">了解产品能力</a>
           </div>
         </div>
@@ -419,8 +421,8 @@
       <section class="checkup-section app-view" data-view="checkup" id="checkup" aria-labelledby="checkup-title">
         <div class="section-heading">
           <span class="eyebrow">在线体检</span>
-          <h2 id="checkup-title">先验证授权码，再生成志愿风险诊断</h2>
-          <p>先录入考生基础信息，再从独立志愿表页面导入或调整96个志愿，验证授权码后生成可复核、可导出的风险报告。</p>
+          <h2 id="checkup-title">先验证授权码，再生成AI完整报告</h2>
+          <p>先录入考生基础信息，再从独立志愿表页面导入或调整96个志愿，验证授权码后由AI生成可复核、可导出的完整风险报告。</p>
         </div>
         <div class="checkup-steps" aria-label="在线评估流程">
           <article class="is-active"><span>1</span><strong>填写信息</strong><small>完善考生与志愿信息</small></article>
@@ -571,7 +573,7 @@
                   打开志愿表页面
                 </a>
               </div>
-              <small class="field-help" id="volunteerSummaryStatus">请先确认志愿表顺序，再生成风险预览。</small>
+              <small class="field-help" id="volunteerSummaryStatus">请先确认志愿表顺序，再生成AI完整报告。</small>
             </div>
 
             <div class="form-card license-panel">
@@ -579,7 +581,7 @@
                 <i data-lucide="key-round" aria-hidden="true"></i>
                 <strong>授权码校验</strong>
               </div>
-              <p>生成匹配结果前必须先验证授权码。验证通过只解锁公开数据匹配，完整报告成功生成后才会扣减次数。</p>
+              <p>生成报告前必须先验证授权码。验证通过后会匹配公开数据并交给AI生成完整报告，报告成功返回后才会扣减次数。</p>
               <div class="license-input-row">
                 <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
                 <button class="outline-button" type="button" data-license-check>
@@ -587,12 +589,12 @@
                   验证授权码
                 </button>
               </div>
-              <small class="license-status" id="licenseStatus" data-tone="muted">请先输入授权码并验证，再生成逐条风险预览。</small>
+              <small class="license-status" id="licenseStatus" data-tone="muted">请先输入授权码并验证，再生成AI完整报告。</small>
             </div>
             <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
-              验证授权码并生成风险预览
+              验证授权码并生成AI完整报告
             </button>
           </form>
 
@@ -1078,7 +1080,7 @@
             <div class="price">￥<strong>0</strong></div>
             <ul>
               <li>风险总览</li>
-              <li>全表逐条风险预览</li>
+              <li>全表逐条AI诊断</li>
               <li>风险分布概览</li>
             </ul>
             <a class="solid-button" href="#/checkup">立即体验</a>
@@ -1153,7 +1155,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr><td>整表风险预览</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>整表AI风险诊断</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>96志愿逐条诊断</td><td>预览支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>报告生成次数</td><td>0次</td><td>1次</td><td>3次</td><td>填报季内不限次</td></tr>
                 <tr><td>顾问沟通摘要</td><td>基础</td><td>支持</td><td>支持</td><td>支持</td></tr>
@@ -1257,37 +1259,52 @@
     </main>
 
     <footer class="site-footer">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <a class="brand" href="#/home" aria-label="寻鹿升学首页">
-            <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
-            <span class="brand-copy">
-              <strong>寻鹿升学</strong>
-              <small>高考志愿决策平台</small>
-            </span>
-          </a>
-          <p>用数据和规则，帮助每一位考生做出更稳妥的志愿决策。</p>
+      <div class="footer-shell">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <a class="brand" href="#/home" aria-label="寻鹿升学首页">
+              <span class="brand-mark"><img class="brand-logo" src="./assets/xunlu-logo.png" alt="" /></span>
+              <span class="brand-copy">
+                <strong>寻鹿升学</strong>
+                <small>高考志愿决策平台</small>
+              </span>
+            </a>
+            <p>专注河北新高考志愿风险诊断，用公开数据、AI分析和顾问复核思路，帮助家庭在提交前看清风险。</p>
+            <div class="footer-trust">
+              <span><i data-lucide="shield-check" aria-hidden="true"></i> 数据可追溯</span>
+              <span><i data-lucide="file-check-2" aria-hidden="true"></i> 报告可导出</span>
+            </div>
+          </div>
+          <nav class="footer-column" aria-label="页脚产品入口">
+            <h3>产品入口</h3>
+            <a href="#/product">产品介绍</a>
+            <a href="#/checkup">在线评估</a>
+            <a href="#/volunteers">志愿表</a>
+            <a href="#/sample">报告样例</a>
+          </nav>
+          <nav class="footer-column" aria-label="页脚服务入口">
+            <h3>服务支持</h3>
+            <a href="#/pricing">服务方案</a>
+            <button type="button" data-open-modal="contactModal" data-package="获取授权码">获取授权码</button>
+            <a href="tel:18233662815">电话咨询</a>
+            <span>服务时间：9:00-18:00</span>
+          </nav>
+          <div class="footer-contact-card">
+            <div>
+              <h3>联系顾问</h3>
+              <strong><a href="tel:18233662815">18233662815</a></strong>
+              <span>河北普通类本科批、专科批</span>
+            </div>
+            <div class="qr-box" aria-label="微信咨询二维码">
+              <img class="wechat-qr" src="./assets/wechat-qr.png" alt="微信咨询二维码" />
+              <span>扫码微信咨询</span>
+            </div>
+          </div>
         </div>
-        <div>
-          <h3>联系我们</h3>
-          <p>客服电话：<a href="tel:18233662815">18233662815</a></p>
-          <p>服务时间：9:00-18:00</p>
-          <p>服务范围：河北普通类本科批、专科批</p>
+        <div class="footer-bottom">
+          <span>© 2025 寻鹿升学</span>
+          <span>本网站仅提供数据分析与志愿风险提示，不保证录取结果，请结合官方信息理性决策。</span>
         </div>
-        <div>
-          <h3>相关链接</h3>
-          <a href="#/product">产品介绍</a>
-          <a href="#/checkup">在线评估</a>
-          <a href="#/sample">报告样例</a>
-          <a href="#/pricing">价格方案</a>
-        </div>
-        <div class="qr-box" aria-label="微信咨询二维码">
-          <img class="wechat-qr" src="./assets/wechat-qr.png" alt="微信咨询二维码" />
-          <span>微信咨询</span>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <span>本网站仅提供数据分析与志愿风险提示，不保证录取结果，请理性决策。</span>
       </div>
     </footer>
 
@@ -1303,7 +1320,7 @@
       </a>
       <a class="solid-button" href="#/checkup">
         <i data-lucide="sparkles" aria-hidden="true"></i>
-        输入授权码生成报告
+        生成AI完整报告
       </a>
     </div>
 
@@ -1336,6 +1353,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./app.js?v=20260619-ai-flow-v1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+    <script src="./app.js?v=20260619-nav-ai-pdf-v1"></script>
   </body>
 </html>
