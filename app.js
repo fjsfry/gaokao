@@ -61,6 +61,9 @@ function setActiveView(view = getRouteView(), options = {}) {
   if (view !== "volunteers") {
     setVolunteerWindowExpanded(false);
   }
+  if (view !== "checkup") {
+    setRiskWindowExpanded(false);
+  }
   document.querySelectorAll(".app-view[data-view]").forEach((section) => {
     section.classList.toggle("is-active", section.dataset.view === view);
   });
@@ -677,6 +680,53 @@ function getAction(score, flags) {
   return "建议删除";
 }
 
+function estimateAdmissionProbability(score, type, flags, ranks) {
+  let value = score;
+  if (type === "极冲") value -= 18;
+  if (type === "冲") value -= 10;
+  if (type === "小冲") value -= 4;
+  if (type === "保") value += 7;
+  if (type === "垫") value += 10;
+  if (ranks.source === "public-data") value += 4;
+  if (ranks.source === "score-only") value -= 6;
+  if (ranks.source === "estimated") value -= 12;
+  if (flags.selectionMismatch || flags.belowBatchLine) value = Math.min(value, 8);
+  if (flags.avoidMatch || flags.privateConflict || flags.coopConflict || flags.remoteConflict) value -= 10;
+  if (flags.planScarcityRisk || flags.newMajorRisk || flags.avgRankPressure || flags.statSpreadRisk) value -= 5;
+  const confidence =
+    ranks.source === "public-data" && (flags.planEvidenceMatched || flags.majorStatMatched)
+      ? "较高"
+      : ranks.source === "public-data"
+        ? "中等"
+        : "需复核";
+  const clamped = Math.max(3, Math.min(96, Math.round(value)));
+  const spread = confidence === "较高" ? 6 : confidence === "中等" ? 10 : 15;
+  const low = Math.max(1, clamped - spread);
+  const high = Math.min(98, clamped + spread);
+  const label =
+    clamped >= 82
+      ? "较稳"
+      : clamped >= 68
+        ? "有机会"
+        : clamped >= 48
+          ? "不确定"
+          : clamped >= 28
+            ? "偏低"
+            : "很低";
+  return {
+    value: clamped,
+    range: `${low}%–${high}%`,
+    label,
+    confidence,
+    note: confidence === "需复核" ? "公开证据不足，概率仅作结构预估" : "基于位次差、风险项和证据强度估算"
+  };
+}
+
+function formatProbability(probability) {
+  if (!probability) return "需复核";
+  return `${probability.range}（${probability.label}）`;
+}
+
 function normalizeBatchName(value) {
   const text = String(value || "");
   if (text.includes("专科")) return "专科批";
@@ -895,6 +945,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   };
   const risk = getRiskLevel(score);
   const action = getAction(score, flags);
+  const probability = estimateAdmissionProbability(score, type, flags, ranks);
   const qualification =
     belowBatchLine || selectionMismatch
       ? "不建议填报"
@@ -956,6 +1007,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     flags,
     planEvidence,
     majorStatEvidence: statEvidence,
+    probability,
     reasons: reasons.slice(0, 6)
   };
 }
@@ -987,25 +1039,33 @@ function buildStructureSummary(diagnoses) {
   const needReview = diagnoses.filter((item) => item.ranks.source !== "public-data").length;
 
   const target = getTargetDistribution(total, diagnoses[0]?.formTarget);
+  const referenceRange = getReferenceDistributionRange(target);
   const stableGap = Math.max(0, target.stable - stable);
   const safeGap = Math.max(0, target.safe - safeOnly);
   const cushionGap = Math.max(0, target.cushion - cushion);
+  const safetyCount = stable + safeOnly + cushion;
+  const rushRatio = rush / total;
+  const safetyRatio = safetyCount / total;
+  const likelyHigh = diagnoses.filter((item) => Number(item.probability?.value || 0) < 45).length;
+  const likelySafe = diagnoses.filter((item) => Number(item.probability?.value || 0) >= 75).length;
 
   const comments = [];
-  if (rush / total > 0.34) comments.push("冲刺志愿占比偏高，建议减少无效冲刺，把位置留给可承接的稳妥志愿。");
-  if (stableGap > 0) comments.push(`稳妥志愿不足，建议至少补充${stableGap}个稳定承接志愿。`);
-  if (safeGap + cushionGap > 0) comments.push(`保底与垫底志愿不足，建议补充${safeGap + cushionGap}个真实可接受的兜底选择。`);
+  comments.push("冲稳保垫分布只作为结构参照，不要求机械套用；最终要结合孩子偏好、位次证据、专业限制和家庭风险承受度动态判断。");
+  if (rushRatio > 0.42) comments.push("当前前段冲刺密度偏高，若这些志愿不是强意愿选择，建议把一部分位置让给更能承接的稳妥或保底志愿。");
+  if (safetyRatio < 0.42) comments.push("当前稳、保、垫合计承接能力偏弱，整体滑档缓冲不足，建议重点检查后段志愿是否真实可接受。");
+  if (safe / total < 0.22) comments.push("后段保底垫底数量偏少或有效性不足，建议优先确认是否存在可接受的兜底院校和专业。");
   if (replace > 0) comments.push(`当前至少有${replace}个志愿需要优先替换或删除。`);
   if (planScarcity + newMajor + avgRankPressureCount > 0) comments.push(`有${planScarcity + newMajor + avgRankPressureCount}处计划人数、新增专业或平均位次压力风险，建议优先复核当年招生计划和专业热度。`);
   if (needReview > total * 0.35) comments.push("部分志愿未直接命中公开历史投档记录，完整报告会标注为需人工复核，不包装成确定结论。");
-  if (!comments.length) comments.push("当前志愿表结构相对均衡，建议继续核对当年招生计划和院校章程。");
+  if (likelyHigh > total * 0.3) comments.push("预估录取概率偏低的志愿占比较高，AI完整报告会重点判断是否属于有效冲刺还是无效占位。");
+  if (likelySafe >= total * 0.45 && replace === 0) comments.push("当前有一定数量的较稳志愿，后续重点是核验专业取舍、费用和地域接受度。");
 
   const grade =
     invalid > 0 || retreatRisk > 0
       ? "E 严重风险"
-      : high > total * 0.22 || rush > total * 0.45
+      : high > total * 0.22 || rushRatio > 0.48 || likelyHigh > total * 0.36
         ? "D 高风险"
-        : rush > total * 0.34 || stableGap + safeGap + cushionGap > 0
+        : rushRatio > 0.42 || safetyRatio < 0.42
           ? "C 风险偏高"
           : replace > 0 || needReview > total * 0.25
             ? "B 基本合理"
@@ -1037,12 +1097,25 @@ function buildStructureSummary(diagnoses) {
     avgRankPressureCount,
     needReview,
     target,
+    referenceRange,
     stableGap,
     safeGap,
     cushionGap,
+    safetyCount,
+    likelyHigh,
+    likelySafe,
     grade,
     comments
   };
+}
+
+function getReferenceDistributionRange(target) {
+  return Object.fromEntries(
+    Object.entries(target).map(([key, value]) => {
+      const buffer = Math.max(1, Math.round(value * 0.25));
+      return [key, `${Math.max(0, value - buffer)}–${value + buffer}`];
+    })
+  );
 }
 
 function getTargetDistribution(total, familyTarget = "稳妥录取") {
@@ -1172,6 +1245,18 @@ function tableHTML(headers, rows) {
     .join("")}</tbody></table></div>`;
 }
 
+function getDistributionRows(summary) {
+  const range = summary.referenceRange || {};
+  return [
+    ["极冲", summary.extremeRush, range.extremeRush || "-", summary.extremeRush > summary.rush * 0.45 ? "极冲偏多，需确认是否真想冲" : "可保留少量高意愿冲刺"],
+    ["冲", summary.rushOnly, range.rushOnly || "-", summary.rushOnly > summary.stable ? "冲刺密度偏高" : "结合意愿和位次差判断"],
+    ["小冲", summary.smallRush, range.smallRush || "-", "可作为前中段试探，不宜替代稳妥志愿"],
+    ["稳", summary.stable, range.stable || "-", summary.stable + summary.safeOnly < summary.total * 0.45 ? "承接层偏弱，建议重点复核" : "承担主体录取概率"],
+    ["保", summary.safeOnly, range.safe || "-", summary.safeOnly + summary.cushion < summary.total * 0.22 ? "后段缓冲偏少" : "保证后段承接"],
+    ["垫", summary.cushion, range.cushion || "-", "只保留真实愿意就读的兜底项"]
+  ];
+}
+
 function getVolunteerReasonableness(item) {
   if (item.qualification === "不建议填报" || /不建议|删除/.test(item.action)) return "不合理";
   if (/替换/.test(item.action)) return "不建议保留原位置";
@@ -1240,6 +1325,7 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
       `第${item.orderNo}志愿`,
       `${item.schoolName} / ${item.majorName}`,
       item.type,
+      formatProbability(item.probability),
       item.qualification || item.risk?.label,
       getVolunteerRetentionDecision(item),
       item.reasons?.[0] || "需要结合当年招生计划复核"
@@ -1249,20 +1335,14 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
     item.schoolName,
     item.majorName,
     item.type,
+    formatProbability(item.probability),
     getVolunteerReasonableness(item),
     getVolunteerRetentionDecision(item),
     item.risk?.label || "",
     getVolunteerEvidenceLabel(item),
     getVolunteerPlanStatLabel(item)
   ]);
-  const structureRows = [
-    ["极冲", summary.extremeRush, summary.target?.extremeRush ?? "-", "控制数量，只保留真正想冲的志愿"],
-    ["冲", summary.rushOnly, summary.target?.rushOnly ?? "-", "避免前段过密"],
-    ["小冲", summary.smallRush, summary.target?.smallRush ?? "-", "可作为前中段试探"],
-    ["稳", summary.stable, summary.target?.stable ?? "-", summary.stableGap ? `建议补充${summary.stableGap}个` : "承担主体录取概率"],
-    ["保", summary.safeOnly, summary.target?.safe ?? "-", summary.safeGap ? `建议补充${summary.safeGap}个` : "保证后段承接"],
-    ["垫", summary.cushion, summary.target?.cushion ?? "-", summary.cushionGap ? `建议补充${summary.cushionGap}个` : "兜底防滑档"]
-  ];
+  const structureRows = getDistributionRows(summary);
   return `
     <div class="structured-report">
       <div class="report-kpi-grid">
@@ -1279,8 +1359,8 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
         ["地域 / 费用", `${formData.regionPreference || "不限"} / ${formData.budget || "未填"}`],
         ["民办 / 中外合作 / 偏远城市", `${formData.acceptPrivate || "未填"} / ${formData.acceptCoop || "未填"} / ${formData.acceptRemote || "未填"}`]
       ])}
-      <h4>志愿结构分布与建议目标</h4>
-      ${tableHTML(["层次", "当前数量", "建议目标", "处理建议"], structureRows)}
+      <h4>志愿结构分布与参考区间</h4>
+      ${tableHTML(["层次", "当前数量", "参考区间", "动态判断"], structureRows)}
       <h4>风险统计</h4>
       ${tableHTML(["指标", "数量", "说明"], [
         ["高风险志愿", summary.high || 0, "优先看位次、限制条件和是否需要替换"],
@@ -1291,9 +1371,9 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
         ["需人工复核", summary.needReview || 0, "不能包装成确定结论"]
       ])}
       <h4>优先修改清单</h4>
-      ${tableHTML(["序号", "院校/专业", "层次", "可报判断", "去留建议", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
+      ${tableHTML(["序号", "院校/专业", "层次", "预估概率", "可报判断", "去留建议", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
       <h4>逐项诊断摘要（覆盖全部志愿）</h4>
-      ${tableHTML(["序号", "院校", "专业", "层次", "合理性", "去留", "风险", "证据", "计划/统计资料"], detailRows)}
+      ${tableHTML(["序号", "院校", "专业", "层次", "预估概率", "合理性", "去留", "风险", "证据", "计划/统计资料"], detailRows)}
     </div>
   `;
 }
@@ -1302,17 +1382,19 @@ function renderAiReport(content, meta = {}) {
   const target = document.querySelector("#aiReport");
   if (!target) return;
   target.innerHTML = `
-    <div class="ai-report-head">
-      <span>完整解读报告</span>
-      <strong>${escapeHTML(meta.model ? "AI已生成" : "规则解读")}</strong>
+    <div class="ai-complete-report" id="completeReportExport">
+      <div class="ai-report-head">
+        <span>完整解读报告</span>
+        <strong>${escapeHTML(meta.model ? "AI已生成" : "规则解读")}</strong>
+      </div>
+      ${buildStructuredReportHTML()}
+      <div class="ai-section-title">AI家长版解释</div>
+      <div class="ai-report-body">${markdownToHTML(content)}</div>
     </div>
-    ${buildStructuredReportHTML()}
-    <div class="ai-section-title">AI家长版解释</div>
-    <div class="ai-report-body">${markdownToHTML(content)}</div>
     <div class="ai-report-actions">
       <button class="outline-button compact" type="button" data-export-pdf>
         <i data-lucide="download" aria-hidden="true"></i>
-        导出PDF
+        导出完整报告PDF
       </button>
     </div>
   `;
@@ -1355,6 +1437,32 @@ async function refreshReportPayloadForAi() {
   latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
   latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiRematch };
   return latestReportPayload;
+}
+
+async function requestAiPreview(payload) {
+  const response = await fetchWithTimeout(
+    "/api/ai-checkup",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, licenseCode: getLicenseCode() })
+    },
+    120000
+  );
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "AI初步复核失败");
+  }
+  if (data.license) {
+    latestLicenseState = data.license;
+    latestVerifiedLicenseCode = normalizeEnteredLicenseCode(getLicenseCode());
+    renderLicenseStatus(describeLicense(data.license), "success");
+  }
+  return {
+    content: data.content || "",
+    model: data.model || "",
+    generatedAt: new Date().toISOString()
+  };
 }
 
 async function generateAiReport(button) {
@@ -1504,6 +1612,92 @@ function buildEvidencePreview(item) {
   return "本条未在当前收录数据中精确命中该校该专业近年位次，系统已尝试别名、专业简称、批次放宽和更早年份，当前仅作为结构预览。";
 }
 
+function renderAiPreviewBlock(aiPreview) {
+  if (aiPreview?.content) {
+    return `
+      <div class="diagnosis-card ai-preview-card">
+        <span><i data-lucide="sparkles" aria-hidden="true"></i> AI初步复核</span>
+        <div class="ai-preview-body">${markdownToHTML(aiPreview.content)}</div>
+      </div>
+    `;
+  }
+  if (aiPreview?.error) {
+    return `
+      <div class="diagnosis-card ai-preview-card warning">
+        <span><i data-lucide="circle-alert" aria-hidden="true"></i> AI初步复核未完成</span>
+        <p>${escapeHTML(aiPreview.error)}。规则预览仍可查看，完整报告会再次调用AI复核。</p>
+      </div>
+    `;
+  }
+  return "";
+}
+
+function renderDiagnosisDetailCard(item) {
+  return `
+    <details class="risk-detail-card" ${Number(item.orderNo) <= 2 ? "open" : ""}>
+      <summary>
+        <span class="risk-order">第${item.orderNo}志愿</span>
+        <strong>${escapeHTML(item.schoolName)} + ${escapeHTML(item.majorName)}</strong>
+        <span class="tag ${item.risk.tone}">${item.risk.label}</span>
+        <span class="tag probability-tag">概率 ${escapeHTML(formatProbability(item.probability))}</span>
+        <span class="tag">${escapeHTML(getVolunteerRetentionDecision(item))}</span>
+      </summary>
+      <div class="risk-detail-body">
+        <div class="risk-tags">
+          <span class="tag">${item.type}</span>
+          <span class="tag">${escapeHTML(item.qualification)}</span>
+          <span class="tag">合理性：${escapeHTML(getVolunteerReasonableness(item))}</span>
+          <span class="tag">证据：${getVolunteerEvidenceLabel(item)}</span>
+          <span class="tag">${escapeHTML(getVolunteerPlanStatLabel(item))}</span>
+        </div>
+        <p><strong>判断：</strong>${escapeHTML(getVolunteerReasonableness(item))}，建议${escapeHTML(getVolunteerRetentionDecision(item))}。</p>
+        <p><strong>原因：</strong>${escapeHTML(item.reasons.slice(0, 3).join("；") || "该志愿需要结合官方数据进一步复核。")}</p>
+        <p><strong>概率说明：</strong>${escapeHTML(item.probability?.note || "概率为提交前风险体检估算，不代表录取承诺。")}</p>
+        <p>证据摘要：${escapeHTML(buildEvidencePreview(item))}</p>
+      </div>
+    </details>
+  `;
+}
+
+function renderRiskOverviewWindow(items, summary) {
+  return `
+    <div class="risk-overview-window" id="riskOverviewWindow">
+      <div class="risk-window-bar">
+        <div>
+          <span><i data-lucide="panel-top" aria-hidden="true"></i> 逐条风险概览窗口</span>
+          <small>默认折叠展示，点击每条可展开；支持放大窗口集中查看。</small>
+        </div>
+        <button class="outline-button compact window-expand-button" type="button" data-risk-window-expand aria-pressed="false">
+          <i data-lucide="maximize-2" aria-hidden="true"></i>
+          放大查看
+        </button>
+      </div>
+      <div class="risk-window-scroll">
+        ${items.map(renderDiagnosisDetailCard).join("")}
+      </div>
+      <div class="risk-window-footer">
+        <span>已覆盖全部${summary.total}条志愿；概率为区间估算，不构成录取承诺。</span>
+        <span>可先处理高风险、概率偏低和证据不足的志愿。</span>
+      </div>
+    </div>
+  `;
+}
+
+function setRiskWindowExpanded(expanded) {
+  const windowNode = document.querySelector("#riskOverviewWindow");
+  if (!windowNode) return;
+  windowNode.classList.toggle("is-window-expanded", Boolean(expanded));
+  document.body.classList.toggle("risk-overview-expanded", Boolean(expanded));
+  const button = windowNode.querySelector("[data-risk-window-expand]");
+  if (button) {
+    button.setAttribute("aria-pressed", String(Boolean(expanded)));
+    button.innerHTML = expanded
+      ? '<i data-lucide="minimize-2" aria-hidden="true"></i> 收起窗口'
+      : '<i data-lucide="maximize-2" aria-hidden="true"></i> 放大查看';
+    createIcons();
+  }
+}
+
 async function renderReport(formData) {
   await ensureLicenseReady();
   formData.licenseCode = getLicenseCode();
@@ -1520,8 +1714,16 @@ async function renderReport(formData) {
 
   const diagnoses = volunteers.map((volunteer) => diagnoseVolunteer(volunteer, formData, dataContext));
   const summary = buildStructureSummary(diagnoses);
+  let aiPreview = null;
+  const previewPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext };
+  try {
+    renderReportLoading("公开数据匹配完成，正在交给AI复核志愿结构与概率判断。");
+    aiPreview = await requestAiPreview(previewPayload);
+  } catch (error) {
+    aiPreview = { error: error.message || "AI初步复核暂不可用" };
+  }
   latestLeadSummary = buildLeadSummary(formData, summary, diagnoses);
-  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext };
+  latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiPreview };
 
   const previewItems = diagnoses;
   const priorityItems = diagnoses
@@ -1545,7 +1747,7 @@ async function renderReport(formData) {
 
       <div class="result-cards">
         <article class="result-card"><span>冲刺志愿</span><strong>${summary.rush}</strong><small>极冲/冲/小冲</small></article>
-        <article class="result-card"><span>稳妥志愿</span><strong>${summary.stable}</strong><small>建议目标 ${summary.target.stable}</small></article>
+        <article class="result-card"><span>较稳概率</span><strong>${summary.likelySafe}</strong><small>概率区间偏高</small></article>
         <article class="result-card"><span>保底垫底</span><strong>${summary.safe}</strong><small>保/垫</small></article>
         <article class="result-card"><span>需处理</span><strong>${summary.replace}</strong><small>替换/删除/下移</small></article>
       </div>
@@ -1556,16 +1758,12 @@ async function renderReport(formData) {
         ${summary.comments.map((comment) => `<p>${escapeHTML(comment)}</p>`).join("")}
       </div>
 
+      ${renderAiPreviewBlock(aiPreview)}
+
       <div class="diagnosis-card structured-preview-card">
         <span>冲稳保垫分布</span>
-        ${tableHTML(["层次", "当前数量", "建议目标", "提示"], [
-          ["极冲", summary.extremeRush, summary.target.extremeRush, "控制数量"],
-          ["冲", summary.rushOnly, summary.target.rushOnly, "避免前段过密"],
-          ["小冲", summary.smallRush, summary.target.smallRush, "可作为前中段试探"],
-          ["稳", summary.stable, summary.target.stable, summary.stableGap ? `缺${summary.stableGap}个` : "主体承接"],
-          ["保", summary.safeOnly, summary.target.safe, summary.safeGap ? `缺${summary.safeGap}个` : "后段承接"],
-          ["垫", summary.cushion, summary.target.cushion, summary.cushionGap ? `缺${summary.cushionGap}个` : "防滑档"]
-        ])}
+        <p>以下区间只是结构参照，不要求用户完全照做；系统会结合当前志愿真实分布、概率区间和家庭偏好动态判断。</p>
+        ${tableHTML(["层次", "当前数量", "参考区间", "动态判断"], getDistributionRows(summary))}
       </div>
 
       <div class="diagnosis-card structured-preview-card">
@@ -1589,38 +1787,10 @@ async function renderReport(formData) {
           <span>逐条志愿分析</span>
           <strong>已覆盖全部${summary.total}条志愿</strong>
         </div>
-        <small>每条都包含合理性、去留建议、风险原因和证据状态。</small>
+        <small>每条都包含合理性、去留建议、概率区间、风险原因和证据状态。</small>
       </div>
 
-      <div class="diagnosis-list full-diagnosis-list">
-        ${previewItems
-          .map(
-            (item) => `
-              <article class="diagnosis-card">
-                <header>
-                  <div>
-                    <span>第${item.orderNo}志愿</span>
-                    <h4>${escapeHTML(item.schoolName)} + ${escapeHTML(item.majorName)}</h4>
-                  </div>
-                  <strong class="tag ${item.risk.tone}">${item.risk.label}</strong>
-                </header>
-                <div class="risk-tags">
-                  <span class="tag">${item.type}</span>
-                  <span class="tag">${escapeHTML(item.qualification)}</span>
-                  <span class="tag">合理性：${escapeHTML(getVolunteerReasonableness(item))}</span>
-                  <span class="tag">去留：${escapeHTML(getVolunteerRetentionDecision(item))}</span>
-                  <span class="tag">风险分 ${item.score}</span>
-                  <span class="tag">${getVolunteerEvidenceLabel(item)}</span>
-                  <span class="tag">${escapeHTML(getVolunteerPlanStatLabel(item))}</span>
-                </div>
-                <p><strong>判断：</strong>${escapeHTML(getVolunteerReasonableness(item))}，建议${escapeHTML(getVolunteerRetentionDecision(item))}。</p>
-                <p><strong>原因：</strong>${escapeHTML(item.reasons.slice(0, 2).join("；") || "该志愿需要结合官方数据进一步复核。")}</p>
-                <p>证据摘要：${escapeHTML(buildEvidencePreview(item))}</p>
-              </article>
-            `
-          )
-          .join("")}
-      </div>
+      ${renderRiskOverviewWindow(previewItems, summary)}
 
       <div class="diagnosis-card">
         <span>优先修改清单</span>
@@ -1632,7 +1802,7 @@ async function renderReport(formData) {
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
           <i data-lucide="sparkles" aria-hidden="true"></i>
-          <span>逐条体检结果已生成。可先导出预览PDF；完整报告会再次安全校验授权码，并在生成成功后扣减次数。</span>
+          <span>逐条体检和AI初步复核已完成。完整报告会再次安全校验授权码，并在生成成功后扣减次数。</span>
         </div>
       </div>
 
@@ -1651,7 +1821,7 @@ async function renderReport(formData) {
         </button>
         <button class="outline-button" type="button" data-export-pdf>
           <i data-lucide="download" aria-hidden="true"></i>
-          导出PDF
+          生成完整报告后导出PDF
         </button>
       </div>
     </div>
@@ -1678,16 +1848,16 @@ async function copyLeadSummary() {
 }
 
 function exportReportPdf() {
-  const report = document.querySelector("#liveReport .live-result");
+  const report = document.querySelector("#completeReportExport");
   if (!report) {
-    toast("请先生成风险预览报告");
+    toast("请先生成完整报告，再导出PDF");
     return;
   }
-  document.body.classList.add("print-report-mode");
+  document.body.classList.add("print-complete-report-mode");
   const originalTitle = document.title;
-  document.title = `寻鹿升学-志愿风险评估报告-${new Date().toISOString().slice(0, 10)}`;
+  document.title = `寻鹿升学-完整志愿风险报告-${new Date().toISOString().slice(0, 10)}`;
   const cleanup = () => {
-    document.body.classList.remove("print-report-mode");
+    document.body.classList.remove("print-complete-report-mode");
     document.title = originalTitle;
     window.removeEventListener("afterprint", cleanup);
   };
@@ -2368,12 +2538,20 @@ function initInteractions() {
       exportReportPdf();
       return;
     }
+
+    const riskWindowButton = event.target.closest("[data-risk-window-expand]");
+    if (riskWindowButton) {
+      const expanded = riskWindowButton.getAttribute("aria-pressed") !== "true";
+      setRiskWindowExpanded(expanded);
+      return;
+    }
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeModals();
       setVolunteerWindowExpanded(false);
+      setRiskWindowExpanded(false);
     }
   });
 

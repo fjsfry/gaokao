@@ -985,6 +985,7 @@ def compact_report_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "action": item.get("action"),
                 "qualification": item.get("qualification"),
                 "score": item.get("score"),
+                "admission_probability": item.get("probability") or {},
                 "evidence_source": (item.get("ranks") or {}).get("source"),
                 "match_count": (item.get("ranks") or {}).get("matchCount"),
                 "flags": item.get("flags") or {},
@@ -1052,12 +1053,14 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "如果输入中包含 enrollment_plan，必须把计划人数、选科要求、学费、学制、新增专业等作为可报性和波动风险证据。"
                 "如果输入中包含 major_admission_stats，必须把最低位次、平均位次、最高位次和录取人数用于判断专业热度与稳定性。"
                 "如果这些增强资料为空，必须写明未命中公开计划/专业统计，不得自行补造。"
+                "输入中 admission_probability 是系统根据公开数据、位次差、风险项和证据强度估算出的概率区间，"
+                "你必须把它作为每条志愿的参考概率来解释，但不得写成保证录取。"
                 "不得使用“保证录取”“一定录取”“绝对安全”等表述。"
                 "如果某条没有匹配到足够公开投档记录，必须说明已降级为结构判断，建议核验官方招生计划、院校章程、近年投档线和专业组选科要求。"
                 "输入中的 evidence_audit 是完整报告生成前重新匹配后的证据审计结果，必须在总评中说明直接命中、分数记录和需复核的大致情况。"
                 "报告不能全是文字，必须使用Markdown表格和短段落组合，便于家长阅读。"
                 "必须至少包含以下表格：1考生基本信息表，2志愿结构统计表，3风险统计表，4优先修改清单表，5逐条诊断摘要表。"
-                "逐条诊断摘要表必须覆盖输入中的全部志愿，每一行都要包含合理性判断和去留建议。"
+                "逐条诊断摘要表必须覆盖输入中的全部志愿，每一行都要包含录取概率区间、合理性判断和去留建议。"
                 "表格之外每节最多写2个短段落，语言要像顾问解释给家长听。"
                 "报告格式使用：总评、志愿结构评估、风险统计、优先修改清单、逐条诊断摘要、需要补充的志愿、提交前提醒。"
             ),
@@ -1067,9 +1070,35 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
             "content": (
                 "请根据下面的规则引擎结果，生成一份面向家长的河北志愿表风险体检报告。"
                 "逐条诊断摘要必须展示全部志愿，不能只展示前几条；如果志愿较多，逐条表格每条一行即可。"
-                "需要明确输出每条志愿的合理性判断，并明确四类动作：保留、下移、替换、删除。"
-                "需要说明还缺多少稳、保、垫志愿；如果无法确定，请写需人工复核，不要编造学校。"
+                "需要明确输出每条志愿的录取概率区间、合理性判断，并明确四类动作：保留、下移、替换、删除。"
+                "冲稳保垫参考分布只作为参照，不要强迫用户机械按模板调整；请根据当前真实分布动态判断是否合理。"
                 "必须保留证据字段，不能把演示数据包装成官方数据。\n\n"
+                f"{json.dumps(compact, ensure_ascii=False, indent=2)}"
+            ),
+        },
+    ]
+
+
+def build_preview_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
+    compact = compact_report_payload(payload)
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是河北高考志愿风险初步复核助手。"
+                "你的任务是在完整报告前，对系统已经匹配的公开数据和逐条规则诊断做一次面向家长的短复核。"
+                "冲稳保垫分布只能作为参考，不能要求用户机械照做。"
+                "必须使用 admission_probability 概率区间解释风险，且不得使用保证录取、一定录取、绝对安全等表述。"
+                "不要虚构学校、专业、分数、位次、招生计划或来源。"
+                "输出Markdown，控制在600字以内，必须包含一个3到6行表格。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "请输出四部分：1 AI复核结论；2 当前志愿分布是否合理；3 重点风险窗口表格；4 家长下一步操作。"
+                "重点风险窗口表格优先列出概率偏低、需替换/删除、证据不足、选科或费用风险的志愿。"
+                "如果有96条志愿，不需要逐条展开，只需要指出结构风险；完整报告阶段再覆盖全部志愿。\n\n"
                 f"{json.dumps(compact, ensure_ascii=False, indent=2)}"
             ),
         },
@@ -1250,6 +1279,93 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return
 
+        if self.path == "/api/ai-checkup":
+            try:
+                payload = self.read_json_payload()
+            except Exception as exc:
+                self.write_json({"ok": False, "error": f"Invalid JSON: {exc}"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            form_data = payload.get("formData") if isinstance(payload.get("formData"), dict) else {}
+            license_code = payload.get("licenseCode") or form_data.get("licenseCode")
+            if not license_code:
+                self.write_json(
+                    {"ok": False, "licenseRequired": True, "error": "请先输入并验证授权码，再进行AI初步复核。"},
+                    status=HTTPStatus.PAYMENT_REQUIRED,
+                )
+                return
+
+            try:
+                license_row = verify_license_code(license_code)
+                api_key, model = get_deepseek_config()
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+            except PermissionError as exc:
+                self.write_json({"ok": False, "licenseRequired": True, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+                return
+            except RuntimeError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+                return
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json(
+                    {"ok": False, "error": "授权码系统暂不可用，请联系顾问处理。", "detail": detail},
+                    status=HTTPStatus.BAD_GATEWAY,
+                )
+                return
+
+            body = {
+                "model": model,
+                "messages": build_preview_messages(payload),
+                "thinking": {"type": os.environ.get("DEEPSEEK_THINKING", "enabled")},
+                "reasoning_effort": os.environ.get("DEEPSEEK_REASONING_EFFORT", "medium"),
+                "temperature": 0.2,
+                "max_tokens": 1800,
+                "stream": False,
+            }
+
+            try:
+                response = requests.post(
+                    deepseek_chat_url(),
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=90,
+                )
+                response.raise_for_status()
+                data = response.json()
+                choices = data.get("choices") or []
+                content = (choices[0].get("message") or {}).get("content") if choices else ""
+                if not content:
+                    raise RuntimeError("AI初步复核未返回有效内容。")
+                self.write_json(
+                    {
+                        "ok": True,
+                        "model": data.get("model", model),
+                        "content": content,
+                        "usage": data.get("usage"),
+                        "license": public_license_state(license_row),
+                    }
+                )
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else HTTPStatus.BAD_GATEWAY
+                try:
+                    detail = exc.response.json()
+                except Exception:
+                    detail = exc.response.text[:500] if exc.response is not None else str(exc)
+                self.write_json({"ok": False, "error": "AI初步复核暂不可用，请稍后重试。", "detail": detail}, status=status)
+            except Exception as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
         if self.path != "/api/ai-report":
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
@@ -1325,7 +1441,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "thinking": {"type": os.environ.get("DEEPSEEK_THINKING", "enabled")},
             "reasoning_effort": os.environ.get("DEEPSEEK_REASONING_EFFORT", "high"),
             "temperature": 0.2,
-            "max_tokens": 2600,
+            "max_tokens": 5200,
             "stream": False,
         }
 
