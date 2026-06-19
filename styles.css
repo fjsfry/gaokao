@@ -9814,24 +9814,34 @@ main > section.app-view,
 }
 
 .pdf-export-root {
-  position: fixed;
+  position: absolute;
   top: 0;
-  left: -12000px;
-  z-index: -1;
-  width: 794px;
+  left: 0;
+  z-index: -10;
+  width: 760px;
+  pointer-events: none;
   background: #ffffff;
   color: #0b1d2b;
 }
 
 .pdf-export-copy {
-  width: 794px;
+  box-sizing: border-box;
+  width: 760px;
   max-width: none;
   margin: 0;
-  padding: 28px;
+  padding: 24px;
   border: 0;
   border-radius: 0;
   box-shadow: none;
   background: #ffffff;
+  overflow: visible;
+}
+
+.pdf-export-copy *,
+.pdf-export-copy *::before,
+.pdf-export-copy *::after {
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .pdf-export-copy .ai-report-head,
@@ -9848,13 +9858,46 @@ main > section.app-view,
 
 .pdf-export-copy .ai-report-body {
   color: #10243a;
-  font-size: 13px;
-  line-height: 1.68;
+  padding: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.62;
+}
+
+.pdf-export-copy .ai-report-head {
+  padding: 0 0 14px;
+  gap: 12px;
+}
+
+.pdf-export-copy .ai-report-head span,
+.pdf-export-copy .ai-report-head strong {
+  overflow-wrap: anywhere;
 }
 
 .pdf-export-copy .ai-table-wrap {
+  width: 100%;
   overflow: visible;
   box-shadow: none;
+  border-radius: 8px;
+}
+
+.pdf-export-copy .ai-report-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.pdf-export-copy .ai-report-table th,
+.pdf-export-copy .ai-report-table td {
+  padding: 7px 8px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.pdf-export-copy .ai-report-table th {
+  white-space: normal;
 }
 
 @media (max-width: 1180px) {

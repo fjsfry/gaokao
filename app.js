@@ -173,7 +173,7 @@ async function verifyLicenseCode(button, options = {}) {
   if (!licenseCode) {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("请先输入授权码。未验证授权码时，系统不会匹配公开数据或生成完整报告。", "warn");
+    renderLicenseStatus("请先输入授权码。未验证前不能生成完整报告。", "warn");
     toast("请输入授权码");
     document.querySelector("#licenseCode")?.focus();
     if (required) throw new Error("请先输入授权码");
@@ -224,14 +224,14 @@ async function ensureLicenseReady() {
   if (!normalized) {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("请先输入授权码并验证，通过后才能匹配公开数据。", "warn");
+    renderLicenseStatus("请先输入授权码并验证，通过后才能生成完整报告。", "warn");
     document.querySelector("#licenseCode")?.focus();
     throw new Error("请先输入授权码");
   }
   if (latestLicenseState && latestVerifiedLicenseCode === normalized) {
     return latestLicenseState;
   }
-  renderLicenseStatus("正在验证授权码，通过后开始匹配公开数据。", "muted");
+  renderLicenseStatus("正在验证授权码，通过后即可生成完整报告。", "muted");
   return verifyLicenseCode(null, { required: true, successToast: false });
 }
 
@@ -767,15 +767,36 @@ function planIsNewMajor(row) {
   return /^(true|1|yes)$/i.test(String(row?.is_new_major || "")) || /新增|新设|首次招生/.test(String(row?.major_remark || ""));
 }
 
+function planProjectText(row) {
+  return [
+    row?.major_remark,
+    row?.level,
+    row?.major_name,
+    row?.discipline_category,
+    row?.major_category,
+    row?.selection_requirement
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function planIsCooperationOrHighFee(row) {
+  return /中外合作|合作办学|国际项目|国际班|高收费|较高收费|校企合作|联合培养/.test(planProjectText(row));
+}
+
 function compactPlanEvidence(rows) {
   const row = firstUsefulRow(rows);
   if (!row) return null;
+  const projectText = planProjectText(row);
   return {
     year: row.year,
     planCount: normalizeNumber(row.plan_count),
     selectionRequirement: row.selection_requirement || "",
     tuition: normalizeNumber(row.tuition),
     duration: row.duration || "",
+    majorRemark: row.major_remark || "",
+    projectText,
+    isCooperationOrHighFee: planIsCooperationOrHighFee(row),
     disciplineCategory: row.discipline_category || "",
     majorCategory: row.major_category || "",
     isNewMajor: planIsNewMajor(row),
@@ -851,6 +872,17 @@ function getRelevantBatchLine(formData, dataContext) {
   return rows.find((row) => String(row.batch || "").includes(batch.replace("批", ""))) || null;
 }
 
+function parseBudgetLimit(text) {
+  const raw = String(text || "");
+  const match = raw.match(/(\d+(?:\.\d+)?)\s*(万|w|W|元)?/);
+  if (!match) return 0;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const unit = match[2] || "";
+  if (/万|w/i.test(unit) || value < 1000) return Math.round(value * 10000);
+  return Math.round(value);
+}
+
 function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const userRank = formData.rank || dataContext?.scoreRank?.cumulative_rank || 50000;
   const ranks = buildRanksFromEvidence(volunteer, formData, dataContext);
@@ -879,10 +911,15 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const avoidMatch = avoid.some((item) => item && major.includes(item));
   const preferenceMatch = preferred.length === 0 || preferred.some((item) => major.includes(item));
   const regionMismatch = /不接受省外|只接受省内|仅河北|优先省内/.test(regionPreference) && !hebeiSchoolPattern.test(volunteer.schoolName);
+  const planProjectEvidence = Boolean(planEvidence?.isCooperationOrHighFee);
+  const nameProjectSignal = /中外合作|合作办学|国际项目|国际班|高收费|校企合作|联合培养/.test(combinedName);
   const privateConflict = formData.acceptPrivate === "否" && /民办|独立学院/.test(combinedName);
-  const coopConflict = formData.acceptCoop === "否" && /中外|合作|国际|高收费|校企/.test(combinedName);
+  const coopConflict = formData.acceptCoop === "否" && (planProjectEvidence || nameProjectSignal);
   const remoteConflict = formData.acceptRemote === "否" && !hebeiSchoolPattern.test(volunteer.schoolName) && /不接受太远|优先省内|河北|石家庄|保定|唐山/.test(regionPreference || "河北");
-  const tuitionRisk = Number(planEvidence?.tuition || 0) >= 18000;
+  const tuition = Number(planEvidence?.tuition || 0);
+  const budgetLimit = parseBudgetLimit(formData.budget);
+  const tuitionRisk = tuition >= 18000 || (budgetLimit > 0 && tuition > budgetLimit);
+  const feeReviewNeeded = nameProjectSignal && !planProjectEvidence && !tuition;
   const planScarcityRisk = Number(planEvidence?.planCount || 0) > 0 && Number(planEvidence?.planCount || 0) <= 2;
   const newMajorRisk = Boolean(planEvidence?.isNewMajor);
   const avgRankPressure = Boolean(statEvidence?.avgRank && userRank > Number(statEvidence.avgRank) * 1.08);
@@ -891,7 +928,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
       statEvidence?.maxRank &&
       Math.abs(Number(statEvidence.maxRank) - Number(statEvidence.minRank)) > Math.max(userRank * 0.15, 6000)
   );
-  const highFee = /中外|国际|软件|校企|民办/.test(combinedName) || /2万|20000|高收费/.test(formData.budget || "") || privateConflict || coopConflict || tuitionRisk;
+  const highFee = tuitionRisk || planProjectEvidence || (coopConflict && planProjectEvidence);
   const trendRisk = /计算机|软件|人工智能|临床|口腔|电气|法学|汉语言/.test(major) || avgRankPressure;
   const volatilityRisk = ranks.swing > 8000;
   const batchLine = getRelevantBatchLine(formData, dataContext);
@@ -928,6 +965,10 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     selectionMismatch,
     avoidMatch,
     highFee,
+    tuitionRisk,
+    planProjectEvidence,
+    nameProjectSignal,
+    feeReviewNeeded,
     trendRisk,
     volatilityRisk,
     preferenceMatch,
@@ -961,7 +1002,8 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
       planEvidence.year ? `${planEvidence.year}年计划` : "招生计划",
       planEvidence.planCount ? `计划${planEvidence.planCount}人` : "",
       planEvidence.selectionRequirement ? `选科：${planEvidence.selectionRequirement}` : "",
-      planEvidence.tuition ? `学费约${planEvidence.tuition}元/年` : ""
+      planEvidence.tuition ? `学费约${planEvidence.tuition}元/年` : "",
+      planEvidence.isCooperationOrHighFee ? "备注提示中外合作/高收费项目" : ""
     ].filter(Boolean);
     reasons.push(`已匹配招生计划信息：${planBits.join("，")}。`);
   }
@@ -989,9 +1031,11 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (!preferenceMatch) reasons.push("专业名称与用户偏好方向存在差异，建议确认课程和培养方向。");
   if (regionMismatch) reasons.push("院校地域与当前地域偏好存在冲突，需要确认是否接受省外或远距离城市。");
   if (privateConflict) reasons.push("家庭当前不接受民办，院校性质可能与偏好冲突。");
-  if (coopConflict) reasons.push("家庭当前不接受中外合作或高收费项目，需要优先替换或确认费用。");
+  if (coopConflict && planProjectEvidence) reasons.push("招生计划或备注提示中外合作/高收费项目，且家庭当前不接受，需要优先替换或确认费用。");
+  if (coopConflict && !planProjectEvidence) reasons.push("名称提示可能涉及中外合作或高收费，当前未匹配到学费/项目备注，需先核实后再判断。");
   if (remoteConflict) reasons.push("家庭当前不接受偏远城市，本条志愿的城市接受度需要重点复核。");
-  if (highFee) reasons.push("存在高收费、中外合作或预算冲突提示。");
+  if (tuitionRisk) reasons.push("已匹配到学费信息，学费金额可能高于常规或家庭预算，需要确认是否接受。");
+  if (feeReviewNeeded) reasons.push("仅从名称看到合作/高收费线索，尚未匹配到学费或招生备注，不能直接按高收费下结论。");
 
   return {
     ...volunteer,
@@ -1028,7 +1072,10 @@ function buildStructureSummary(diagnoses) {
   const replace = diagnoses.filter((item) => /替换|删除/.test(item.action)).length;
   const invalid = diagnoses.filter((item) => /不建议|删除/.test(item.action) || item.qualification === "不建议填报").length;
   const retreatRisk = diagnoses.filter((item) => item.flags.selectionMismatch || item.flags.belowBatchLine).length;
-  const highFeeRisk = diagnoses.filter((item) => item.flags.highFee || item.flags.privateConflict || item.flags.coopConflict).length;
+  const highFeeRisk = diagnoses.filter((item) => {
+    const flags = item.flags || {};
+    return flags.highFee || flags.tuitionRisk || flags.privateConflict || (flags.coopConflict && flags.planProjectEvidence);
+  }).length;
   const selectionMismatch = diagnoses.filter((item) => item.flags.selectionMismatch).length;
   const publicMatched = diagnoses.filter((item) => item.ranks.source === "public-data").length;
   const planMatched = diagnoses.filter((item) => item.flags.planEvidenceMatched).length;
@@ -1136,7 +1183,14 @@ function buildLeadSummary(formData, summary, diagnoses) {
   const clueItems = diagnoses
     .filter((item) => {
       const flags = item.flags || {};
-      return item.ranks.source !== "public-data" || flags.selectionMismatch || flags.retreatRisk || flags.highFeeRisk || flags.planScarcity || flags.newMajor;
+      return (
+        item.ranks.source !== "public-data" ||
+        flags.selectionMismatch ||
+        flags.highFee ||
+        flags.feeReviewNeeded ||
+        flags.planScarcityRisk ||
+        flags.newMajorRisk
+      );
     })
     .slice(0, 5)
     .map((item) => {
@@ -1144,10 +1198,10 @@ function buildLeadSummary(formData, summary, diagnoses) {
       const clues = [
         item.ranks.source === "public-data" ? "命中公开记录" : "需补充公开证据",
         flags.selectionMismatch ? "选科需核验" : "",
-        flags.retreatRisk ? "退档风险线索" : "",
-        flags.highFeeRisk ? "费用/性质需确认" : "",
-        flags.planScarcity ? "计划数偏少" : "",
-        flags.newMajor ? "新增专业波动" : ""
+        flags.highFee ? "学费/项目性质需确认" : "",
+        flags.feeReviewNeeded ? "名称有合作项目线索，需核实学费" : "",
+        flags.planScarcityRisk ? "计划数偏少" : "",
+        flags.newMajorRisk ? "新增专业波动" : ""
       ]
         .filter(Boolean)
         .join("、");
@@ -1385,7 +1439,7 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
         ["高风险志愿", summary.high || 0, "优先看位次、限制条件和是否需要替换"],
         ["无效/不建议风险", summary.invalid || 0, "批次、选科、身体或明确偏好冲突"],
         ["高退档风险", summary.retreatRisk || 0, "选科、批次或硬性条件需核验"],
-        ["高学费/性质风险", summary.highFeeRisk || 0, "民办、中外合作、高收费或预算冲突"],
+        ["学费/项目性质需确认", summary.highFeeRisk || 0, "以学费、招生备注、项目性质和家庭预算为准；名称线索仅作待核实"],
         ["公开记录命中", summary.publicMatched || 0, "可追溯证据更强"],
         ["需人工复核", summary.needReview || 0, "不能包装成确定结论"]
       ])}
@@ -1457,14 +1511,14 @@ async function refreshReportPayloadForAi() {
   return latestReportPayload;
 }
 
-function renderReportLoading(message = "正在验证授权码并整理志愿表证据。") {
+function renderReportLoading(message = "正在整理志愿表并生成完整报告。") {
   const target = document.querySelector("#liveReport");
   if (!target) return;
   target.innerHTML = `
     <div class="live-empty live-loading">
       <i data-lucide="loader-circle" aria-hidden="true"></i>
       <h3>${escapeHTML(message)}</h3>
-      <p>授权码通过后才会匹配公开数据，并把志愿表、招生计划、专业统计和家庭条件交给AI生成完整报告。</p>
+      <p>报告会优先围绕全省位次、近年专业录取位次、招生计划和限制条件进行复核。</p>
     </div>
   `;
   createIcons();
@@ -1474,9 +1528,9 @@ function renderReportError(message) {
   const target = document.querySelector("#liveReport");
   if (!target) return;
   const isLicenseError = /授权码|报告码|输入/.test(String(message || ""));
-  const title = isLicenseError ? "需要先验证授权码" : "暂时无法读取公开数据";
+  const title = isLicenseError ? "需要先验证授权码" : "暂时无法读取位次资料";
   const detail = isLicenseError
-    ? `${message}。验证通过后，系统才会开始匹配公开投档数据并生成AI完整报告。`
+    ? `${message}。验证通过后才会生成完整报告。`
     : `${message}。可以先联系顾问核对数据状态，完整结论建议在公开证据和AI报告基础上复核。`;
   target.innerHTML = `
     <div class="live-empty">
@@ -1495,7 +1549,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("公开数据匹配超时，暂未生成AI完整报告");
+      throw new Error("位次资料读取超时，暂未生成完整报告");
     }
     throw error;
   } finally {
@@ -1511,7 +1565,7 @@ async function requestDataContext(formData, volunteers) {
   });
   const data = await response.json();
   if (!response.ok || !data.ok) {
-    throw new Error(data.error || "公开数据匹配失败");
+    throw new Error(data.error || "位次资料读取失败");
   }
   if (data.license) {
     latestLicenseState = data.license;
@@ -1533,7 +1587,7 @@ function buildEvidencePreview(item) {
   if (item.ranks.source === "score-only") {
     return "匹配到公开分数记录，但缺少可直接比较的位次字段，建议人工复核。";
   }
-  return "本条未在当前收录数据中精确命中该校该专业近年位次，系统已尝试别名、专业简称、批次放宽和更早年份，当前仅作为结构预览。";
+  return "本条未精确命中该校该专业近年位次，已按别名、专业简称和更早年份进行核验，当前仅作为结构参照。";
 }
 
 function renderDiagnosisDetailCard(item) {
@@ -1607,13 +1661,13 @@ async function renderReport(formData) {
   formData.licenseCode = getLicenseCode();
   const sourceRows = parseVolunteers(formData.volunteers || sampleVolunteerText);
   const volunteers = sourceRows.length ? sourceRows : parseVolunteers(sampleVolunteerText);
-  renderReportLoading("授权码已通过，正在匹配公开数据并整理AI报告证据。");
+  renderReportLoading("授权码已通过，正在按位次和志愿顺序生成完整报告。");
   let dataContext = {};
   try {
     dataContext = await requestDataContext(formData, volunteers);
   } catch (error) {
     renderReportError(error.message);
-    toast("公开数据读取失败，暂未生成报告");
+    toast("位次资料读取失败，暂未生成报告");
     throw error;
   }
 
@@ -1634,13 +1688,13 @@ async function renderReport(formData) {
     <div class="live-result ai-direct-result">
       <div class="result-head">
         <div>
-          <span class="eyebrow">AI完整报告生成中</span>
+          <span class="eyebrow">完整报告生成中</span>
           <h3>${escapeHTML(formData.subject)} / ${escapeHTML(formData.batch)} / ${summary.total}条志愿</h3>
-          <p class="result-subtitle">参考公开数据年份：${escapeHTML(dataContext.dataYear || "待匹配")}；${dataContext.scoreRank ? `当前分数约对应位次 ${dataContext.scoreRank.cumulative_rank}` : "位次以表单输入为准"}。AI将根据当前志愿分布独立判断录取概率、合理性和去留建议。</p>
+          <p class="result-subtitle">参考数据年份：${escapeHTML(dataContext.dataYear || "待匹配")}；${dataContext.scoreRank ? `当前分数约对应位次 ${dataContext.scoreRank.cumulative_rank}` : "位次以表单输入为准"}。报告会以位次为主线，结合志愿顺序、专业要求和家庭偏好判断风险。</p>
         </div>
         <div class="result-score ai-score-badge">
-          <span>报告模式</span>
-          <strong>AI</strong>
+          <span>报告状态</span>
+          <strong>生成中</strong>
         </div>
       </div>
 
@@ -1652,16 +1706,16 @@ async function renderReport(formData) {
       </div>
 
       <div class="diagnosis-card">
-        <span>生成逻辑</span>
-        <h4>当前志愿分布只作为证据，不作为固定模板</h4>
-        <p>系统已完成授权码校验和公开数据匹配，正在把位次、计划、专业统计、选科限制、地域偏好、费用接受度和志愿顺序交给AI统一判断。</p>
-        <p>最终报告中的录取概率、合理性和“保留/下移/替换/删除”建议由AI生成；缺少公开证据的条目会标记为需复核，不会包装成确定结论。</p>
+        <span>分析原则</span>
+        <h4>位次优先，分数只作辅助参照</h4>
+        <p>报告会结合近年专业录取位次、招生计划、选科限制、地域偏好、费用接受度和当前志愿顺序进行判断。</p>
+        <p>冲稳保垫只是参考框架，最终建议会根据当前志愿表的真实分布动态调整；证据不足的条目会标记为需复核。</p>
       </div>
 
       <div class="ai-report-panel" id="aiReport">
         <div class="ai-status">
           <i data-lucide="loader-circle" aria-hidden="true"></i>
-          <span>AI正在生成完整报告。报告成功返回后才会扣减授权码次数。</span>
+          <span>正在生成完整报告。报告成功返回后才会扣减授权码次数。</span>
         </div>
       </div>
 
@@ -1744,7 +1798,7 @@ async function exportReportPdf() {
 
   const filename = `寻鹿升学-完整志愿风险报告-${new Date().toISOString().slice(0, 10)}.pdf`;
   const options = {
-    margin: [8, 8, 10, 8],
+    margin: [10, 10, 12, 10],
     filename,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: {
@@ -1753,12 +1807,13 @@ async function exportReportPdf() {
       backgroundColor: "#ffffff",
       scrollX: 0,
       scrollY: 0,
-      windowWidth: 794
+      windowWidth: 760,
+      width: 760
     },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     pagebreak: {
       mode: ["css", "legacy"],
-      avoid: [".ai-report-head", ".ai-section-title", ".ai-table-wrap", "table", "tr", "h1", "h2", "h3"]
+      avoid: [".ai-report-head", ".ai-section-title", "tr", "h1", "h2", "h3", "h4"]
     }
   };
 
@@ -1801,7 +1856,7 @@ async function loadDataOverview() {
     });
   } catch {
     nodes.forEach((node) => {
-      node.textContent = "公开数据正在更新，体检结果会标注需要复核的条目";
+      node.textContent = "位次资料正在更新，报告会标注需要复核的条目";
     });
   }
 }
@@ -2343,7 +2398,7 @@ function initInteractions() {
   document.querySelector("#licenseCode")?.addEventListener("input", () => {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("授权码已修改，请重新验证；未通过前不会匹配公开数据。", "muted");
+    renderLicenseStatus("授权码已修改，请重新验证；未通过前不能生成完整报告。", "muted");
   });
 
   form?.addEventListener("submit", async (event) => {
