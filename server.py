@@ -336,7 +336,7 @@ def build_license_record(code: str, plan: str, note: str, expires_at: str | None
         "remaining_uses": uses,
         "max_uses_per_day": 20 if plan == "season" else 0,
         "expires_at": expires_at,
-        "customer_note": append_license_vault_note(note, sealed_code),
+        "customer_note": note or None,
     }
 
 
@@ -354,6 +354,7 @@ def insert_license_record(record: dict[str, Any]) -> dict[str, Any]:
         if "code_sealed" not in text:
             raise
         legacy_record = {key: value for key, value in record.items() if key != "code_sealed"}
+        legacy_record["customer_note"] = append_license_vault_note(record.get("customer_note"), record.get("code_sealed"))
         response = HTTP.post(
             supabase_service_url("report_licenses"),
             headers=supabase_service_headers({"Prefer": "return=representation"}),
