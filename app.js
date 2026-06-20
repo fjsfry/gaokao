@@ -956,6 +956,7 @@ function getAction(score, flags) {
   if (flags.belowBatchLine) return "不建议填报";
   if (flags.selectionMismatch) return "建议删除或人工复核";
   if (flags.privateConflict || flags.coopConflict) return "建议替换或下移";
+  if (flags.coopReviewNeeded || flags.feeReviewNeeded) return "先核实费用项目";
   if (flags.avoidMatch || flags.remoteConflict || flags.regionMismatch || !flags.preferenceMatch) return "建议沟通后调整";
   if (flags.highFee) return "谨慎填报";
   if (score >= 85) return "强烈建议保留";
@@ -978,6 +979,7 @@ function estimateAdmissionProbability(score, type, flags, ranks) {
   if (ranks.source === "estimated") value -= 12;
   if (flags.selectionMismatch || flags.belowBatchLine) value = Math.min(value, 8);
   if (flags.privateConflict || flags.coopConflict) value -= 10;
+  if (flags.coopReviewNeeded || flags.feeReviewNeeded) value -= 4;
   if (flags.avoidMatch || flags.remoteConflict || flags.regionMismatch || !flags.preferenceMatch) value -= 3;
   if (flags.planScarcityRisk || flags.newMajorRisk || flags.avgRankPressure || flags.statSpreadRisk) value -= 5;
   const confidence =
@@ -1201,7 +1203,8 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const planProjectEvidence = Boolean(planEvidence?.isCooperationOrHighFee);
   const nameProjectSignal = /中外合作|合作办学|国际项目|国际班|高收费|校企合作|联合培养/.test(combinedName);
   const privateConflict = formData.acceptPrivate === "否" && /民办|独立学院/.test(combinedName);
-  const coopConflict = formData.acceptCoop === "否" && (planProjectEvidence || nameProjectSignal);
+  const coopConflict = formData.acceptCoop === "否" && planProjectEvidence;
+  const coopReviewNeeded = formData.acceptCoop === "否" && nameProjectSignal && !planProjectEvidence;
   const remoteConflict = formData.acceptRemote === "否" && !hebeiSchoolPattern.test(volunteer.schoolName) && /不接受太远|优先省内|河北|石家庄|保定|唐山/.test(regionPreference || "河北");
   const tuition = Number(planEvidence?.tuition || 0);
   const budgetLimit = parseBudgetLimit(formData.budget);
@@ -1242,6 +1245,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (privateConflict) score -= 12;
   if (coopConflict) score -= 12;
   if (remoteConflict) score -= 3;
+  if (coopReviewNeeded || feeReviewNeeded) score -= 4;
   if (highFee) score -= 7;
   if (avoidMatch) score -= 18;
   if (selectionMismatch) score -= 35;
@@ -1262,6 +1266,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
     regionMismatch,
     privateConflict,
     coopConflict,
+    coopReviewNeeded,
     remoteConflict,
     belowBatchLine,
     planScarcityRisk,
@@ -1279,6 +1284,8 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
       ? "不建议填报"
       : privateConflict || coopConflict || highFee
         ? "谨慎填报"
+        : coopReviewNeeded || feeReviewNeeded
+          ? "需核实费用"
         : remoteConflict || regionMismatch || avoidMatch || !preferenceMatch
           ? "可报，偏好需确认"
         : "可报";
@@ -1321,7 +1328,7 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (regionMismatch) reasons.push("院校地域与当前地域偏好存在差异，仅作为家庭沟通提醒，最终以志愿表真实选择为准。");
   if (privateConflict) reasons.push("家庭当前不接受民办，院校性质可能与偏好冲突。");
   if (coopConflict && planProjectEvidence) reasons.push("招生计划或备注提示中外合作/高收费项目，且家庭当前不接受，需要优先替换或确认费用。");
-  if (coopConflict && !planProjectEvidence) reasons.push("名称提示可能涉及中外合作或高收费，当前未匹配到学费/项目备注，需先核实后再判断。");
+  if (coopReviewNeeded) reasons.push("名称提示可能涉及中外合作或高收费，当前未匹配到学费/项目备注，需先核实后再判断，不能仅凭名称直接删除。");
   if (remoteConflict) reasons.push("城市接受度需要重点复核，但地域偏好只作为参考，不单独决定删除。");
   if (tuitionRisk) reasons.push("已匹配到学费信息，学费金额可能高于常规或家庭预算，需要确认是否接受。");
   if (feeReviewNeeded) reasons.push("仅从名称看到合作/高收费线索，尚未匹配到学费或招生备注，不能直接按高收费下结论。");

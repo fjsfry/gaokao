@@ -62,6 +62,7 @@ LICENSE_PLAN_MARKS = {
     "season": "Y",
 }
 LICENSE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+LICENSE_VAULT_PATTERN = re.compile(r"\n?\[code-vault:([A-Za-z0-9_\-=]+)\]\s*$")
 HTTP = requests.Session()
 
 
@@ -224,6 +225,21 @@ def unseal_license_code(value: Any) -> str | None:
         return None
 
 
+def append_license_vault_note(note: Any, sealed_code: str | None) -> str | None:
+    clean_note = LICENSE_VAULT_PATTERN.sub("", str(note or "")).strip()
+    if not sealed_code:
+        return clean_note or None
+    return f"{clean_note}\n[code-vault:{sealed_code}]" if clean_note else f"[code-vault:{sealed_code}]"
+
+
+def split_license_vault_note(note: Any) -> tuple[str, str | None]:
+    text = str(note or "")
+    match = LICENSE_VAULT_PATTERN.search(text)
+    if not match:
+        return text.strip(), None
+    return LICENSE_VAULT_PATTERN.sub("", text).strip(), match.group(1)
+
+
 def make_license_code(plan: str) -> str:
     body = "".join(secrets.choice(LICENSE_CODE_ALPHABET) for _ in range(16))
     chunks = [body[index : index + 4] for index in range(0, len(body), 4)]
@@ -310,16 +326,17 @@ def parse_license_expires_at(value: Any) -> str | None:
 def build_license_record(code: str, plan: str, note: str, expires_at: str | None) -> dict[str, Any]:
     uses = LICENSE_PLAN_USES[plan]
     normalized_code = normalize_license_code(code)
+    sealed_code = seal_license_code(normalized_code)
     return {
         "code_hash": hash_license_code(normalized_code),
-        "code_sealed": seal_license_code(normalized_code),
+        "code_sealed": sealed_code,
         "code_prefix": code[:10],
         "plan": plan,
         "total_uses": uses,
         "remaining_uses": uses,
         "max_uses_per_day": 20 if plan == "season" else 0,
         "expires_at": expires_at,
-        "customer_note": note or None,
+        "customer_note": append_license_vault_note(note, sealed_code),
     }
 
 
@@ -397,6 +414,11 @@ def pretty_license_code(normalized_code: str | None) -> str | None:
     return code or None
 
 
+def recoverable_license_code(row: dict[str, Any]) -> str | None:
+    _clean_note, sealed_from_note = split_license_vault_note(row.get("customer_note"))
+    return pretty_license_code(unseal_license_code(row.get("code_sealed") or sealed_from_note))
+
+
 def license_status_label(row: dict[str, Any]) -> str:
     expires_at = parse_datetime(row.get("expires_at"))
     if expires_at and expires_at <= datetime.now(timezone.utc):
@@ -459,6 +481,8 @@ def filter_admin_licenses(rows: list[dict[str, Any]], payload: dict[str, Any]) -
     plan_filter = str(payload.get("plan") or "all")
 
     def matches(row: dict[str, Any]) -> bool:
+        clean_note, sealed_from_note = split_license_vault_note(row.get("customer_note"))
+        full_code = pretty_license_code(unseal_license_code(row.get("code_sealed") or sealed_from_note))
         status_label = license_status_label(row)
         if status_filter != "all":
             if status_filter == "expired":
@@ -473,10 +497,10 @@ def filter_admin_licenses(rows: list[dict[str, Any]], payload: dict[str, Any]) -
                 str(part or "")
                 for part in (
                     row.get("code_prefix"),
-                    row.get("customer_note"),
+                    clean_note,
                     row.get("plan"),
                     row.get("status"),
-                    pretty_license_code(unseal_license_code(row.get("code_sealed"))),
+                    full_code,
                 )
             ).lower()
             if query not in haystack:
@@ -490,6 +514,7 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
     license_id = str(row.get("id") or "")
     events = events_by_license.get(license_id, [])
     consume_count = sum(1 for event in events if event.get("event_type") == "consume")
+    clean_note, sealed_from_note = split_license_vault_note(row.get("customer_note"))
     total = row.get("total_uses")
     remaining = row.get("remaining_uses")
     unlimited = is_unlimited_license(row)
@@ -497,7 +522,7 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
         used = consume_count
     else:
         used = max(0, int(total or 0) - int(remaining or 0))
-    full_code = pretty_license_code(unseal_license_code(row.get("code_sealed")))
+    full_code = pretty_license_code(unseal_license_code(row.get("code_sealed") or sealed_from_note))
     return {
         "id": row.get("id"),
         "code": full_code,
@@ -508,7 +533,7 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
         "planLabel": plan_label(row.get("plan")),
         "status": row.get("status"),
         "statusLabel": license_status_label(row),
-        "customerNote": row.get("customer_note") or "",
+        "customerNote": clean_note,
         "totalUses": None if unlimited else int(total or 0),
         "remainingUses": None if unlimited else int(remaining or 0),
         "usedUses": used,
@@ -527,13 +552,14 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
 def public_admin_event(event: dict[str, Any], license_lookup: dict[str, dict[str, Any]]) -> dict[str, Any]:
     license_id = str(event.get("license_id") or "")
     row = license_lookup.get(license_id, {})
+    clean_note, _sealed_from_note = split_license_vault_note(row.get("customer_note"))
     metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
     return {
         "id": event.get("id"),
         "licenseId": license_id,
         "codePrefix": row.get("code_prefix") or "",
         "planLabel": plan_label(row.get("plan")),
-        "customerNote": row.get("customer_note") or "",
+        "customerNote": clean_note,
         "eventType": event.get("event_type"),
         "usesDelta": event.get("uses_delta"),
         "createdAt": event.get("created_at"),
@@ -570,7 +596,11 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
         and (expires_at := parse_datetime(row.get("expires_at")))
         and now < expires_at <= now + timedelta(days=14)
     ]
-    unique_notes = {str(row.get("customer_note") or "").strip() for row in rows if str(row.get("customer_note") or "").strip()}
+    unique_notes = {
+        clean_note
+        for row in rows
+        if (clean_note := split_license_vault_note(row.get("customer_note"))[0])
+    }
     unique_devices = {str(event.get("request_fingerprint") or "") for event in events if event.get("request_fingerprint")}
     plan_counts: dict[str, int] = {}
     for row in rows:
@@ -579,9 +609,11 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
 
     dashboard_licenses = [public_admin_license(row, events_by_license) for row in filtered_rows[:200]]
     dashboard_events = [public_admin_event(event, license_lookup) for event in events[:120]]
+    has_recoverable_codes = any(recoverable_license_code(row) for row in rows)
     return {
         "ok": True,
-        "canRevealCodes": can_reveal_codes,
+        "canRevealCodes": can_reveal_codes or has_recoverable_codes,
+        "hasLicenseCodeColumn": can_reveal_codes,
         "stats": {
             "customerCount": len(unique_notes) or len(rows),
             "uniqueDeviceCount": len(unique_devices),
