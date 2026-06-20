@@ -9,6 +9,7 @@ configured AI report provider.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -16,7 +17,7 @@ import os
 import re
 import secrets
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -191,6 +192,38 @@ def hash_license_code(normalized_code: str) -> str:
     return hmac.new(secret, normalized_code.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
+def license_keystream(length: int, nonce: bytes) -> bytes:
+    secret = get_license_hash_secret().encode("utf-8")
+    output = bytearray()
+    counter = 0
+    while len(output) < length:
+        message = b"license-vault:" + nonce + counter.to_bytes(4, "big")
+        output.extend(hmac.new(secret, message, hashlib.sha256).digest())
+        counter += 1
+    return bytes(output[:length])
+
+
+def seal_license_code(normalized_code: str) -> str:
+    raw = normalized_code.encode("utf-8")
+    nonce = secrets.token_bytes(12)
+    stream = license_keystream(len(raw), nonce)
+    sealed = bytes(byte ^ stream[index] for index, byte in enumerate(raw))
+    return base64.urlsafe_b64encode(nonce + sealed).decode("ascii")
+
+
+def unseal_license_code(value: Any) -> str | None:
+    if not value:
+        return None
+    try:
+        payload = base64.urlsafe_b64decode(str(value).encode("ascii"))
+        nonce, sealed = payload[:12], payload[12:]
+        stream = license_keystream(len(sealed), nonce)
+        raw = bytes(byte ^ stream[index] for index, byte in enumerate(sealed))
+        return raw.decode("utf-8")
+    except Exception:
+        return None
+
+
 def make_license_code(plan: str) -> str:
     body = "".join(secrets.choice(LICENSE_CODE_ALPHABET) for _ in range(16))
     chunks = [body[index : index + 4] for index in range(0, len(body), 4)]
@@ -276,8 +309,10 @@ def parse_license_expires_at(value: Any) -> str | None:
 
 def build_license_record(code: str, plan: str, note: str, expires_at: str | None) -> dict[str, Any]:
     uses = LICENSE_PLAN_USES[plan]
+    normalized_code = normalize_license_code(code)
     return {
-        "code_hash": hash_license_code(normalize_license_code(code)),
+        "code_hash": hash_license_code(normalized_code),
+        "code_sealed": seal_license_code(normalized_code),
         "code_prefix": code[:10],
         "plan": plan,
         "total_uses": uses,
@@ -289,13 +324,26 @@ def build_license_record(code: str, plan: str, note: str, expires_at: str | None
 
 
 def insert_license_record(record: dict[str, Any]) -> dict[str, Any]:
-    response = HTTP.post(
-        supabase_service_url("report_licenses"),
-        headers=supabase_service_headers({"Prefer": "return=representation"}),
-        json=record,
-        timeout=12,
-    )
-    response.raise_for_status()
+    try:
+        response = HTTP.post(
+            supabase_service_url("report_licenses"),
+            headers=supabase_service_headers({"Prefer": "return=representation"}),
+            json=record,
+            timeout=12,
+        )
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        text = exc.response.text if exc.response is not None else ""
+        if "code_sealed" not in text:
+            raise
+        legacy_record = {key: value for key, value in record.items() if key != "code_sealed"}
+        response = HTTP.post(
+            supabase_service_url("report_licenses"),
+            headers=supabase_service_headers({"Prefer": "return=representation"}),
+            json=legacy_record,
+            timeout=12,
+        )
+        response.raise_for_status()
     rows = response.json()
     if not isinstance(rows, list) or not rows:
         raise RuntimeError("Unexpected license create response")
@@ -340,6 +388,254 @@ def create_license_codes(payload: dict[str, Any]) -> list[dict[str, Any]]:
         else:
             raise RuntimeError("授权码生成冲突，请重试。")
     return created
+
+
+def pretty_license_code(normalized_code: str | None) -> str | None:
+    code = normalize_license_code(normalized_code) if normalized_code else ""
+    if len(code) >= 9 and code.startswith("ZL26"):
+        return "-".join([code[:5], *[code[index : index + 4] for index in range(5, len(code), 4)]])
+    return code or None
+
+
+def license_status_label(row: dict[str, Any]) -> str:
+    expires_at = parse_datetime(row.get("expires_at"))
+    if expires_at and expires_at <= datetime.now(timezone.utc):
+        return "已过期"
+    status = str(row.get("status") or "active")
+    return {"active": "可使用", "disabled": "已停用", "refunded": "已退款"}.get(status, status)
+
+
+def get_admin_license_rows() -> tuple[list[dict[str, Any]], bool]:
+    base_select = (
+        "id,code_prefix,code_sealed,plan,total_uses,remaining_uses,max_uses_per_day,"
+        "expires_at,status,customer_note,last_used_at,created_at,updated_at"
+    )
+    params = {"select": base_select, "order": "created_at.desc", "limit": "1000"}
+    try:
+        response = HTTP.get(
+            supabase_service_url("report_licenses"),
+            params=params,
+            headers=supabase_service_headers(),
+            timeout=15,
+        )
+        response.raise_for_status()
+        rows = response.json()
+        return rows if isinstance(rows, list) else [], True
+    except requests.HTTPError as exc:
+        text = exc.response.text if exc.response is not None else ""
+        if "code_sealed" not in text:
+            raise
+    legacy_select = base_select.replace("code_sealed,", "")
+    response = HTTP.get(
+        supabase_service_url("report_licenses"),
+        params={**params, "select": legacy_select},
+        headers=supabase_service_headers(),
+        timeout=15,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    return rows if isinstance(rows, list) else [], False
+
+
+def get_admin_license_events(limit: int = 300) -> list[dict[str, Any]]:
+    response = HTTP.get(
+        supabase_service_url("report_license_events"),
+        params={
+            "select": "id,license_id,event_type,uses_delta,request_fingerprint,client_ip,user_agent,metadata,created_at",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        },
+        headers=supabase_service_headers(),
+        timeout=15,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    return rows if isinstance(rows, list) else []
+
+
+def filter_admin_licenses(rows: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    query = str(payload.get("query") or "").strip().lower()
+    status_filter = str(payload.get("status") or "all")
+    plan_filter = str(payload.get("plan") or "all")
+
+    def matches(row: dict[str, Any]) -> bool:
+        status_label = license_status_label(row)
+        if status_filter != "all":
+            if status_filter == "expired":
+                if status_label != "已过期":
+                    return False
+            elif str(row.get("status") or "") != status_filter:
+                return False
+        if plan_filter != "all" and str(row.get("plan") or "") != plan_filter:
+            return False
+        if query:
+            haystack = " ".join(
+                str(part or "")
+                for part in (
+                    row.get("code_prefix"),
+                    row.get("customer_note"),
+                    row.get("plan"),
+                    row.get("status"),
+                    pretty_license_code(unseal_license_code(row.get("code_sealed"))),
+                )
+            ).lower()
+            if query not in haystack:
+                return False
+        return True
+
+    return [row for row in rows if matches(row)]
+
+
+def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    license_id = str(row.get("id") or "")
+    events = events_by_license.get(license_id, [])
+    consume_count = sum(1 for event in events if event.get("event_type") == "consume")
+    total = row.get("total_uses")
+    remaining = row.get("remaining_uses")
+    unlimited = is_unlimited_license(row)
+    if unlimited:
+        used = consume_count
+    else:
+        used = max(0, int(total or 0) - int(remaining or 0))
+    full_code = pretty_license_code(unseal_license_code(row.get("code_sealed")))
+    return {
+        "id": row.get("id"),
+        "code": full_code,
+        "codePrefix": row.get("code_prefix"),
+        "codeDisplay": full_code or f"{row.get('code_prefix', '旧码')}******",
+        "canReveal": bool(full_code),
+        "plan": row.get("plan"),
+        "planLabel": plan_label(row.get("plan")),
+        "status": row.get("status"),
+        "statusLabel": license_status_label(row),
+        "customerNote": row.get("customer_note") or "",
+        "totalUses": None if unlimited else int(total or 0),
+        "remainingUses": None if unlimited else int(remaining or 0),
+        "usedUses": used,
+        "unlimited": unlimited,
+        "maxUsesPerDay": row.get("max_uses_per_day"),
+        "createdAt": row.get("created_at"),
+        "updatedAt": row.get("updated_at"),
+        "expiresAt": row.get("expires_at"),
+        "lastUsedAt": row.get("last_used_at"),
+        "eventCount": len(events),
+        "lastEventType": events[0].get("event_type") if events else "",
+        "lastEventAt": events[0].get("created_at") if events else row.get("last_used_at"),
+    }
+
+
+def public_admin_event(event: dict[str, Any], license_lookup: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    license_id = str(event.get("license_id") or "")
+    row = license_lookup.get(license_id, {})
+    metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
+    return {
+        "id": event.get("id"),
+        "licenseId": license_id,
+        "codePrefix": row.get("code_prefix") or "",
+        "planLabel": plan_label(row.get("plan")),
+        "customerNote": row.get("customer_note") or "",
+        "eventType": event.get("event_type"),
+        "usesDelta": event.get("uses_delta"),
+        "createdAt": event.get("created_at"),
+        "subject": metadata.get("subject") or "",
+        "batch": metadata.get("batch") or "",
+        "rank": metadata.get("rank") or "",
+        "diagnosisCount": metadata.get("diagnosis_count") or "",
+        "device": str(event.get("request_fingerprint") or "")[:12],
+    }
+
+
+def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
+    require_license_admin(payload)
+    rows, can_reveal_codes = get_admin_license_rows()
+    events = get_admin_license_events()
+    events_by_license: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        events_by_license.setdefault(str(event.get("license_id") or ""), []).append(event)
+
+    filtered_rows = filter_admin_licenses(rows, payload)
+    license_lookup = {str(row.get("id") or ""): row for row in rows}
+    now = datetime.now(timezone.utc)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    consume_events = [event for event in events if event.get("event_type") == "consume"]
+    today_reports = [
+        event
+        for event in consume_events
+        if (parse_datetime(event.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc)) >= today
+    ]
+    expiring_soon = [
+        row
+        for row in rows
+        if row.get("status") == "active"
+        and (expires_at := parse_datetime(row.get("expires_at")))
+        and now < expires_at <= now + timedelta(days=14)
+    ]
+    unique_notes = {str(row.get("customer_note") or "").strip() for row in rows if str(row.get("customer_note") or "").strip()}
+    unique_devices = {str(event.get("request_fingerprint") or "") for event in events if event.get("request_fingerprint")}
+    plan_counts: dict[str, int] = {}
+    for row in rows:
+        plan = str(row.get("plan") or "unknown")
+        plan_counts[plan] = plan_counts.get(plan, 0) + 1
+
+    dashboard_licenses = [public_admin_license(row, events_by_license) for row in filtered_rows[:200]]
+    dashboard_events = [public_admin_event(event, license_lookup) for event in events[:120]]
+    return {
+        "ok": True,
+        "canRevealCodes": can_reveal_codes,
+        "stats": {
+            "customerCount": len(unique_notes) or len(rows),
+            "uniqueDeviceCount": len(unique_devices),
+            "licenseCount": len(rows),
+            "activeLicenseCount": sum(1 for row in rows if row.get("status") == "active" and license_status_label(row) != "已过期"),
+            "usedLicenseCount": sum(1 for row in rows if row.get("last_used_at")),
+            "reportCount": len(consume_events),
+            "todayReportCount": len(today_reports),
+            "expiringSoonCount": len(expiring_soon),
+            "remainingFiniteUses": sum(int(row.get("remaining_uses") or 0) for row in rows if not is_unlimited_license(row)),
+        },
+        "planBreakdown": [
+            {"plan": plan, "planLabel": plan_label(plan), "count": count}
+            for plan, count in sorted(plan_counts.items())
+        ],
+        "licenses": dashboard_licenses,
+        "events": dashboard_events,
+        "resultCount": len(filtered_rows),
+        "totalCount": len(rows),
+    }
+
+
+def update_license_status(payload: dict[str, Any]) -> dict[str, Any]:
+    require_license_admin(payload)
+    license_id = str(payload.get("licenseId") or "").strip()
+    status = str(payload.get("status") or "").strip()
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", license_id):
+        raise ValueError("授权码记录不存在。")
+    if status not in {"active", "disabled", "refunded"}:
+        raise ValueError("授权码状态不正确。")
+    now = utc_now_iso()
+    response = HTTP.patch(
+        supabase_service_url("report_licenses"),
+        params={"id": f"eq.{license_id}"},
+        headers=supabase_service_headers({"Prefer": "return=representation"}),
+        json={"status": status, "updated_at": now},
+        timeout=12,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("授权码记录不存在。")
+    row = rows[0]
+    if status != "active":
+        insert_license_event(
+            row,
+            event_type="disable",
+            uses_delta=0,
+            request_fingerprint="admin",
+            client_ip="",
+            user_agent="license-admin",
+            metadata={"status": status},
+        )
+    return {"ok": True, "license": public_license_state(row)}
 
 
 def is_unlimited_license(row: dict[str, Any]) -> bool:
@@ -1073,6 +1369,8 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "你给出的调整建议必须围绕位次安全边际、近年波动、专业热度、选科/体检/语种/费用限制、地域偏好和家庭风险承受度综合判断。"
                 "你可以使用常规冲稳保垫思路：冲刺区控制密度、稳妥区承担主体录取概率、保底和垫底区保证真实可执行性；"
                 "但不得机械套用固定比例，必须结合输入数据解释为什么这样调整。"
+                "专业偏好、地域偏好只作为家庭讨论参考，不能单独作为删除或替换依据；用户已经录入志愿表时，必须以志愿表的真实顺序和院校专业为准。"
+                "只有批次线、选科/体检/语种等硬性限制、明确费用/项目证据、位次安全边际严重不足等证据，才可以给出删除或强替换建议。"
                 "你只能依据输入的结构化数据生成解释，不得虚构学校、专业、分数、位次、招生计划或来源。"
                 "如果输入中包含 enrollment_plan，必须把计划人数、选科要求、学费、学制、新增专业等作为可报性和波动风险证据。"
                 "判断高收费或中外合作风险时，必须优先使用 tuition、major_remark、level、projectText、isCooperationOrHighFee 等证据；"
@@ -1098,6 +1396,7 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "逐条诊断摘要必须展示全部志愿，不能只展示前几条；如果志愿较多，逐条表格每条一行即可。"
                 "需要明确输出每条志愿的录取概率区间、合理性判断，并明确四类动作：保留、下移、替换、删除。"
                 "冲稳保垫参考分布只作为参照，不要强迫用户机械按模板调整；请根据当前真实分布动态判断是否合理。"
+                "专业偏好和地域偏好只用于提醒家长沟通，不得只因为不匹配偏好就建议删除；用户志愿表中的学校和专业优先代表用户真实意向。"
                 "必须保留证据字段，不能把演示数据包装成官方数据。\n\n"
                 f"{json.dumps(compact, ensure_ascii=False, indent=2)}"
             ),
@@ -1114,6 +1413,7 @@ def build_preview_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 "你是河北高考志愿风险初步复核助手。"
                 "你的任务是在完整报告前，对系统已经匹配的公开数据和逐条规则诊断做一次面向家长的短复核。"
                 "冲稳保垫分布只能作为参考，不能要求用户机械照做。"
+                "专业偏好、地域偏好只作为提醒，不得单独作为删除或替换依据。"
                 "每条概率区间和去留建议必须由AI根据证据独立判断，且不得使用保证录取、一定录取、绝对安全等表述。"
                 "不要虚构学校、专业、分数、位次、招生计划或来源。"
                 "输出Markdown，控制在600字以内，必须包含一个3到6行表格。"
@@ -1224,6 +1524,18 @@ class AppHandler(SimpleHTTPRequestHandler):
             try:
                 payload = self.read_json_payload(max_size=64 * 1024)
                 row = verify_license_code(payload.get("licenseCode"))
+                try:
+                    insert_license_event(
+                        row,
+                        event_type="verify",
+                        uses_delta=0,
+                        request_fingerprint=self.request_fingerprint(),
+                        client_ip=self.client_ip(),
+                        user_agent=self.user_agent(),
+                        metadata={"source": "manual_verify"},
+                    )
+                except Exception:
+                    pass
                 self.write_json({"ok": True, "license": public_license_state(row)})
             except ValueError as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -1242,6 +1554,50 @@ class AppHandler(SimpleHTTPRequestHandler):
                     {"ok": False, "error": "授权码数据库未初始化或暂不可用。", "detail": detail},
                     status=HTTPStatus.BAD_GATEWAY,
                 )
+            except Exception as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
+        if self.path == "/api/admin/dashboard":
+            try:
+                payload = self.read_json_payload(max_size=64 * 1024)
+                self.write_json(build_admin_dashboard(payload))
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except PermissionError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            except RuntimeError:
+                self.write_json({"ok": False, "error": "运营后台暂未完成配置，请检查服务密钥。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json({"ok": False, "error": "运营后台数据读取失败。", "detail": detail}, status=HTTPStatus.BAD_GATEWAY)
+            except Exception as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+
+        if self.path == "/api/admin/license/status":
+            try:
+                payload = self.read_json_payload(max_size=64 * 1024)
+                self.write_json(update_license_status(payload))
+            except ValueError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except PermissionError as exc:
+                self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.FORBIDDEN)
+            except RuntimeError:
+                self.write_json({"ok": False, "error": "运营后台暂未完成配置，请检查服务密钥。"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            except requests.HTTPError as exc:
+                detail: Any = str(exc)
+                if exc.response is not None:
+                    try:
+                        detail = exc.response.json()
+                    except Exception:
+                        detail = exc.response.text[:500]
+                self.write_json({"ok": False, "error": "授权码状态更新失败。", "detail": detail}, status=HTTPStatus.BAD_GATEWAY)
             except Exception as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return

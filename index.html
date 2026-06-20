@@ -8,11 +8,11 @@
       name="description"
       content="寻鹿升学为河北新高考家庭提供96个志愿风险评估、逐条证据分析、调整建议和报告预览，帮助家长和学生在提交前发现冲稳保、选科、章程、学费与顺序风险。"
     />
-    <meta name="app-version" content="20260619-pdf-rank-fee-v1" />
+    <meta name="app-version" content="20260620-admin-dashboard-v1" />
     <link rel="icon" type="image/png" href="./assets/xunlu-logo.png" />
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://images.unsplash.com" />
-    <link rel="stylesheet" href="./styles.css?v=20260619-pdf-rank-fee-v1" />
+    <link rel="stylesheet" href="./styles.css?v=20260620-admin-dashboard-v1" />
   </head>
   <body>
     <header class="site-header">
@@ -554,6 +554,7 @@
                 <input id="avoidMajor" name="avoidMajor" placeholder="如：护理、土木、材料、高收费" />
               </div>
             </div>
+            <small class="field-help">专业偏好和地域偏好只作为家庭沟通参考，报告不会仅凭偏好不一致直接建议删除；最终以你录入的志愿表为准。</small>
             </div>
 
             <div class="form-card volunteer-summary-card">
@@ -1205,15 +1206,22 @@
       <section class="license-admin-section app-view" data-view="license-admin" id="license-admin" aria-labelledby="license-admin-title">
         <div class="license-admin-shell">
           <div class="section-heading compact-heading">
-            <span class="eyebrow">授权码管理</span>
-            <h2 id="license-admin-title">授权码生成</h2>
-            <p>付费确认后在这里生成授权码。明文只显示一次，复制后发给客户；平台仅保留必要校验信息。</p>
+            <span class="eyebrow">运营后台</span>
+            <h2 id="license-admin-title">寻鹿升学志愿后台系统</h2>
+            <p>用于手机或电脑查看用户数量、授权码状态、使用次数和近期报告生成记录。当前不做客户登录，用户数量按授权客户和实际使用设备两类统计。</p>
           </div>
 
-          <div class="license-admin-grid">
-            <form class="license-admin-form" id="licenseAdminForm">
+          <div class="license-admin-grid admin-console-grid">
+            <form class="license-admin-form admin-panel" id="licenseAdminForm">
+              <div class="admin-panel-title">
+                <div>
+                  <span>A</span>
+                  <strong>发码工作台</strong>
+                </div>
+                <small>付款确认后生成授权码</small>
+              </div>
               <div class="form-row">
-                <label for="adminToken">内部发码口令</label>
+                <label for="adminToken">管理员口令</label>
                 <input id="adminToken" name="adminToken" type="password" placeholder="输入管理员口令" autocomplete="current-password" />
               </div>
               <div class="form-row two">
@@ -1243,16 +1251,103 @@
                 <i data-lucide="key-round" aria-hidden="true"></i>
                 生成授权码
               </button>
-              <small class="license-status" id="licenseAdminStatus" data-tone="muted">适合手机操作；请勿把内部口令发给客户。</small>
+              <small class="license-status" id="licenseAdminStatus" data-tone="muted">适合手机操作；请勿把管理员口令发给客户。</small>
             </form>
 
-            <aside class="license-admin-result" id="licenseAdminResult" aria-live="polite">
+            <aside class="license-admin-result admin-panel" id="licenseAdminResult" aria-live="polite">
               <div class="admin-empty">
                 <i data-lucide="key-round" aria-hidden="true"></i>
                 <strong>生成的授权码会显示在这里</strong>
                 <p>明文授权码只返回一次，请生成后立即复制给客户或保存到你的私密记录。</p>
               </div>
             </aside>
+          </div>
+
+          <div class="admin-dashboard-panel">
+            <div class="admin-dashboard-head">
+              <div>
+                <span class="eyebrow">数据总览</span>
+                <h3>用户与授权码运营状态</h3>
+                <p>输入管理员口令后刷新。新生成的授权码可在后台查看完整码；历史旧码因只保存哈希，后台仅显示前缀。</p>
+              </div>
+              <div class="admin-dashboard-actions">
+                <button class="outline-button compact" type="button" data-admin-refresh>
+                  <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                  刷新后台
+                </button>
+                <button class="outline-button compact" type="button" data-admin-export-licenses>
+                  <i data-lucide="download" aria-hidden="true"></i>
+                  导出列表
+                </button>
+              </div>
+            </div>
+
+            <div class="admin-metric-grid" id="adminMetricGrid">
+              <article><span>授权客户数</span><strong>-</strong><small>按授权码/备注统计</small></article>
+              <article><span>实际使用设备</span><strong>-</strong><small>按使用事件统计</small></article>
+              <article><span>已生成报告</span><strong>-</strong><small>成功扣次记录</small></article>
+              <article><span>今日生成</span><strong>-</strong><small>今日完整报告</small></article>
+            </div>
+
+            <div class="admin-filter-row">
+              <label>
+                搜索
+                <input id="adminSearch" type="search" placeholder="客户备注、授权码前缀或完整码" />
+              </label>
+              <label>
+                套餐
+                <select id="adminPlanFilter">
+                  <option value="all">全部套餐</option>
+                  <option value="single">单次报告码</option>
+                  <option value="triple">三次复查码</option>
+                  <option value="season">填报季卡</option>
+                </select>
+              </label>
+              <label>
+                状态
+                <select id="adminStatusFilter">
+                  <option value="all">全部状态</option>
+                  <option value="active">可使用</option>
+                  <option value="disabled">已停用</option>
+                  <option value="refunded">已退款</option>
+                  <option value="expired">已过期</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="admin-data-grid">
+              <section class="admin-table-card">
+                <div class="admin-card-title">
+                  <div>
+                    <strong>授权码列表</strong>
+                    <small id="adminLicenseCount">等待刷新</small>
+                  </div>
+                </div>
+                <div class="admin-table-wrap" id="adminLicenseTable">
+                  <div class="admin-empty compact">
+                    <i data-lucide="list-checks" aria-hidden="true"></i>
+                    <strong>输入管理员口令后点击刷新后台</strong>
+                    <p>这里会显示授权码、套餐、是否使用、剩余次数、客户备注和状态操作。</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="admin-table-card">
+                <div class="admin-card-title">
+                  <div>
+                    <strong>近期使用记录</strong>
+                    <small>验证、扣次、退款和停用记录</small>
+                  </div>
+                </div>
+                <div class="admin-table-wrap" id="adminEventTable">
+                  <div class="admin-empty compact">
+                    <i data-lucide="activity" aria-hidden="true"></i>
+                    <strong>暂无记录</strong>
+                    <p>用户验证授权码或生成完整报告后，会在这里出现记录。</p>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
       </section>
@@ -1354,6 +1449,6 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
-    <script src="./app.js?v=20260619-pdf-rank-fee-v1"></script>
+    <script src="./app.js?v=20260620-admin-dashboard-v1"></script>
   </body>
 </html>

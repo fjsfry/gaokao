@@ -14,6 +14,7 @@ let latestReportPayload = null;
 let latestLicenseState = null;
 let latestVerifiedLicenseCode = "";
 let selectedFileName = "";
+let latestAdminDashboard = null;
 
 function createIcons() {
   if (window.lucide) {
@@ -348,6 +349,7 @@ async function createAdminLicenses(form, button) {
     renderAdminLicenses(data.licenses || []);
     renderAdminStatus("授权码已生成，请立即复制并发给客户。", "success");
     toast("授权码已生成");
+    await loadAdminDashboard(null, { silent: true });
   } catch (error) {
     renderAdminStatus(`${error.message} 请检查口令或稍后重试。`, "error");
   } finally {
@@ -356,6 +358,290 @@ async function createAdminLicenses(form, button) {
       button.innerHTML = original || '<i data-lucide="key-round" aria-hidden="true"></i> 生成授权码';
       createIcons();
     }
+  }
+}
+
+function getAdminDashboardPayload() {
+  return {
+    adminToken: String(document.querySelector("#adminToken")?.value || "").trim(),
+    query: String(document.querySelector("#adminSearch")?.value || "").trim(),
+    plan: String(document.querySelector("#adminPlanFilter")?.value || "all"),
+    status: String(document.querySelector("#adminStatusFilter")?.value || "all")
+  };
+}
+
+function adminEventLabel(type) {
+  return {
+    verify: "验证",
+    consume: "生成报告",
+    refund: "返还次数",
+    disable: "状态变更"
+  }[type] || type || "-";
+}
+
+function adminStatusTone(label) {
+  if (label === "可使用") return "success";
+  if (label === "已过期") return "warn";
+  return "muted";
+}
+
+function renderAdminMetricGrid(stats = {}) {
+  const target = document.querySelector("#adminMetricGrid");
+  if (!target) return;
+  const cards = [
+    ["授权客户数", stats.customerCount ?? 0, "按授权码/备注统计", "users"],
+    ["实际使用设备", stats.uniqueDeviceCount ?? 0, "按使用事件统计", "monitor-check"],
+    ["已生成报告", stats.reportCount ?? 0, "成功扣次记录", "file-check-2"],
+    ["今日生成", stats.todayReportCount ?? 0, "今日完整报告", "calendar-check"],
+    ["可用授权码", stats.activeLicenseCount ?? 0, "当前可验证使用", "badge-check"],
+    ["剩余次数", stats.remainingFiniteUses ?? 0, "不含填报季卡", "gauge"],
+    ["已使用授权码", stats.usedLicenseCount ?? 0, "至少生成过报告", "activity"],
+    ["即将到期", stats.expiringSoonCount ?? 0, "14天内到期", "clock-alert"]
+  ];
+  target.innerHTML = cards
+    .map(
+      ([label, value, help, icon]) => `
+        <article>
+          <i data-lucide="${icon}" aria-hidden="true"></i>
+          <span>${label}</span>
+          <strong>${Number(value || 0).toLocaleString("zh-CN")}</strong>
+          <small>${help}</small>
+        </article>
+      `
+    )
+    .join("");
+  createIcons();
+}
+
+function renderAdminLicenseTable(data = {}) {
+  const target = document.querySelector("#adminLicenseTable");
+  const countNode = document.querySelector("#adminLicenseCount");
+  if (!target) return;
+  const licenses = data.licenses || [];
+  if (countNode) {
+    countNode.textContent = `显示 ${data.resultCount || licenses.length} / 共 ${data.totalCount || licenses.length} 个授权码`;
+  }
+  if (!licenses.length) {
+    target.innerHTML = `
+      <div class="admin-empty compact">
+        <i data-lucide="search-x" aria-hidden="true"></i>
+        <strong>没有匹配的授权码</strong>
+        <p>请调整搜索词、套餐或状态筛选后再试。</p>
+      </div>
+    `;
+    createIcons();
+    return;
+  }
+  target.innerHTML = `
+    <table class="admin-data-table">
+      <thead>
+        <tr>
+          <th>授权码</th>
+          <th>客户/套餐</th>
+          <th>使用次数</th>
+          <th>状态</th>
+          <th>最近使用</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${licenses
+          .map(
+            (item) => `
+              <tr>
+                <td data-label="授权码">
+                  <code>${escapeHTML(item.codeDisplay || item.codePrefix || "-")}</code>
+                  <small>${item.canReveal ? "可复制完整码" : "历史旧码仅保留前缀"}</small>
+                </td>
+                <td data-label="客户/套餐">
+                  <strong>${escapeHTML(item.customerNote || "未填写备注")}</strong>
+                  <small>${escapeHTML(item.planLabel || "-")} · ${escapeHTML(formatDate(item.expiresAt))}</small>
+                </td>
+                <td data-label="使用次数">
+                  <strong>${item.unlimited ? `${item.usedUses || 0} 次` : `${item.usedUses || 0}/${item.totalUses || 0}`}</strong>
+                  <small>${item.unlimited ? `每日上限 ${item.maxUsesPerDay || "不限"}` : `剩余 ${item.remainingUses ?? 0} 次`}</small>
+                </td>
+                <td data-label="状态">
+                  <span class="admin-status ${adminStatusTone(item.statusLabel)}">${escapeHTML(item.statusLabel || "-")}</span>
+                </td>
+                <td data-label="最近使用">
+                  <strong>${escapeHTML(formatDate(item.lastUsedAt || item.lastEventAt))}</strong>
+                  <small>${escapeHTML(adminEventLabel(item.lastEventType))}</small>
+                </td>
+                <td data-label="操作">
+                  <div class="admin-row-actions">
+                    <button class="icon-button" type="button" data-admin-copy-code="${escapeHTML(item.code || "")}" ${item.code ? "" : "disabled"} aria-label="复制授权码">
+                      <i data-lucide="copy" aria-hidden="true"></i>
+                    </button>
+                    <button class="outline-button compact" type="button" data-admin-license-status="${escapeHTML(item.id || "")}" data-status="${item.status === "active" ? "disabled" : "active"}">
+                      ${item.status === "active" ? "停用" : "启用"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+  createIcons();
+}
+
+function renderAdminEventTable(events = []) {
+  const target = document.querySelector("#adminEventTable");
+  if (!target) return;
+  if (!events.length) {
+    target.innerHTML = `
+      <div class="admin-empty compact">
+        <i data-lucide="activity" aria-hidden="true"></i>
+        <strong>暂无使用记录</strong>
+        <p>用户验证授权码或生成完整报告后，会在这里出现记录。</p>
+      </div>
+    `;
+    createIcons();
+    return;
+  }
+  target.innerHTML = `
+    <table class="admin-data-table compact-table">
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>事件</th>
+          <th>授权码</th>
+          <th>客户/场景</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${events
+          .map(
+            (item) => `
+              <tr>
+                <td data-label="时间">${escapeHTML(formatDate(item.createdAt))}</td>
+                <td data-label="事件"><span class="admin-status ${item.eventType === "consume" ? "success" : "muted"}">${escapeHTML(adminEventLabel(item.eventType))}</span></td>
+                <td data-label="授权码">${escapeHTML(item.codePrefix || "-")}<small>${escapeHTML(item.planLabel || "")}</small></td>
+                <td data-label="客户/场景">
+                  <strong>${escapeHTML(item.customerNote || "未填写备注")}</strong>
+                  <small>${escapeHTML([item.subject, item.batch, item.rank ? `位次${item.rank}` : "", item.diagnosisCount ? `${item.diagnosisCount}条志愿` : ""].filter(Boolean).join(" / ") || `设备 ${item.device || "-"}`)}</small>
+                </td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+  createIcons();
+}
+
+function renderAdminDashboard(data) {
+  latestAdminDashboard = data;
+  renderAdminMetricGrid(data.stats || {});
+  renderAdminLicenseTable(data);
+  renderAdminEventTable(data.events || []);
+  if (!data.canRevealCodes) {
+    renderAdminStatus("后台已读取旧表结构。历史授权码只能显示前缀；应用数据库迁移后，新码可在后台查看完整码。", "warn");
+  }
+}
+
+async function loadAdminDashboard(button, options = {}) {
+  const payload = getAdminDashboardPayload();
+  if (!payload.adminToken) {
+    renderAdminStatus("请输入管理员口令后再刷新后台。", "error");
+    document.querySelector("#adminToken")?.focus();
+    return;
+  }
+  const original = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 刷新中';
+    createIcons();
+  }
+  if (!options.silent) renderAdminStatus("正在读取后台数据。", "muted");
+  try {
+    const response = await fetch("/api/admin/dashboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "后台数据读取失败");
+    renderAdminDashboard(data);
+    if (!options.silent) {
+      renderAdminStatus("后台数据已刷新。", "success");
+      toast("后台数据已刷新");
+    }
+  } catch (error) {
+    renderAdminStatus(`${error.message} 请检查口令或稍后重试。`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = original || '<i data-lucide="refresh-cw" aria-hidden="true"></i> 刷新后台';
+      createIcons();
+    }
+  }
+}
+
+function exportAdminLicensesCsv() {
+  const licenses = latestAdminDashboard?.licenses || [];
+  if (!licenses.length) {
+    toast("请先刷新后台数据");
+    return;
+  }
+  const rows = [
+    ["授权码", "客户备注", "套餐", "状态", "已用次数", "总次数", "剩余次数", "创建时间", "最近使用", "有效期"],
+    ...licenses.map((item) => [
+      item.codeDisplay || item.codePrefix || "",
+      item.customerNote || "",
+      item.planLabel || "",
+      item.statusLabel || "",
+      item.usedUses ?? "",
+      item.unlimited ? "不限" : item.totalUses ?? "",
+      item.unlimited ? "不限" : item.remainingUses ?? "",
+      formatDate(item.createdAt),
+      formatDate(item.lastUsedAt || item.lastEventAt),
+      formatDate(item.expiresAt)
+    ])
+  ];
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `寻鹿升学-授权码列表-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast("授权码列表已导出");
+}
+
+async function updateAdminLicenseStatus(button) {
+  const licenseId = button.dataset.adminLicenseStatus || "";
+  const status = button.dataset.status || "";
+  const payload = { adminToken: getAdminDashboardPayload().adminToken, licenseId, status };
+  if (!payload.adminToken) {
+    renderAdminStatus("请输入管理员口令后再操作。", "error");
+    return;
+  }
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = "处理中";
+  try {
+    const response = await fetch("/api/admin/license/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "状态更新失败");
+    toast(status === "active" ? "授权码已启用" : "授权码已停用");
+    await loadAdminDashboard(null, { silent: true });
+  } catch (error) {
+    renderAdminStatus(`${error.message} 请稍后重试。`, "error");
+  } finally {
+    button.disabled = false;
+    button.innerHTML = original;
   }
 }
 
@@ -669,8 +955,8 @@ function getRiskLevel(score) {
 function getAction(score, flags) {
   if (flags.belowBatchLine) return "不建议填报";
   if (flags.selectionMismatch) return "建议删除或人工复核";
-  if (flags.avoidMatch) return "建议替换";
-  if (flags.privateConflict || flags.coopConflict || flags.remoteConflict) return "建议替换或下移";
+  if (flags.privateConflict || flags.coopConflict) return "建议替换或下移";
+  if (flags.avoidMatch || flags.remoteConflict || flags.regionMismatch || !flags.preferenceMatch) return "建议沟通后调整";
   if (flags.highFee) return "谨慎填报";
   if (score >= 85) return "强烈建议保留";
   if (score >= 75) return "建议保留";
@@ -691,7 +977,8 @@ function estimateAdmissionProbability(score, type, flags, ranks) {
   if (ranks.source === "score-only") value -= 6;
   if (ranks.source === "estimated") value -= 12;
   if (flags.selectionMismatch || flags.belowBatchLine) value = Math.min(value, 8);
-  if (flags.avoidMatch || flags.privateConflict || flags.coopConflict || flags.remoteConflict) value -= 10;
+  if (flags.privateConflict || flags.coopConflict) value -= 10;
+  if (flags.avoidMatch || flags.remoteConflict || flags.regionMismatch || !flags.preferenceMatch) value -= 3;
   if (flags.planScarcityRisk || flags.newMajorRisk || flags.avgRankPressure || flags.statSpreadRisk) value -= 5;
   const confidence =
     ranks.source === "public-data" && (flags.planEvidenceMatched || flags.majorStatMatched)
@@ -950,11 +1237,11 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (newMajorRisk) score -= 5;
   if (avgRankPressure) score -= 8;
   if (statSpreadRisk) score -= 5;
-  if (!preferenceMatch) score -= 8;
-  if (regionMismatch) score -= 6;
+  if (!preferenceMatch) score -= 2;
+  if (regionMismatch) score -= 2;
   if (privateConflict) score -= 12;
   if (coopConflict) score -= 12;
-  if (remoteConflict) score -= 8;
+  if (remoteConflict) score -= 3;
   if (highFee) score -= 7;
   if (avoidMatch) score -= 18;
   if (selectionMismatch) score -= 35;
@@ -990,8 +1277,10 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   const qualification =
     belowBatchLine || selectionMismatch
       ? "不建议填报"
-      : privateConflict || coopConflict || remoteConflict || highFee || avoidMatch
+      : privateConflict || coopConflict || highFee
         ? "谨慎填报"
+        : remoteConflict || regionMismatch || avoidMatch || !preferenceMatch
+          ? "可报，偏好需确认"
         : "可报";
   const reasons = [];
 
@@ -1027,13 +1316,13 @@ function diagnoseVolunteer(volunteer, formData, dataContext = {}) {
   if (avgRankPressure) reasons.push("近年平均录取位次明显优于当前位次，仅看最低位次容易低估竞争压力。");
   if (statSpreadRisk) reasons.push("该专业录取位次跨度较大，说明冷热或分流波动明显。");
   if (selectionMismatch) reasons.push("该专业可能涉及物理+化学等选科要求，当前选科信息需要硬性核验。");
-  if (avoidMatch) reasons.push("专业名称命中用户明确不能接受方向。");
-  if (!preferenceMatch) reasons.push("专业名称与用户偏好方向存在差异，建议确认课程和培养方向。");
-  if (regionMismatch) reasons.push("院校地域与当前地域偏好存在冲突，需要确认是否接受省外或远距离城市。");
+  if (avoidMatch) reasons.push("专业名称命中偏好提醒项，但用户已放入志愿表，不能仅凭偏好直接删除，建议结合课程和就业方向确认。");
+  if (!preferenceMatch) reasons.push("专业名称与偏好方向存在差异，仅作为沟通提醒，不作为直接删除依据。");
+  if (regionMismatch) reasons.push("院校地域与当前地域偏好存在差异，仅作为家庭沟通提醒，最终以志愿表真实选择为准。");
   if (privateConflict) reasons.push("家庭当前不接受民办，院校性质可能与偏好冲突。");
   if (coopConflict && planProjectEvidence) reasons.push("招生计划或备注提示中外合作/高收费项目，且家庭当前不接受，需要优先替换或确认费用。");
   if (coopConflict && !planProjectEvidence) reasons.push("名称提示可能涉及中外合作或高收费，当前未匹配到学费/项目备注，需先核实后再判断。");
-  if (remoteConflict) reasons.push("家庭当前不接受偏远城市，本条志愿的城市接受度需要重点复核。");
+  if (remoteConflict) reasons.push("城市接受度需要重点复核，但地域偏好只作为参考，不单独决定删除。");
   if (tuitionRisk) reasons.push("已匹配到学费信息，学费金额可能高于常规或家庭预算，需要确认是否接受。");
   if (feeReviewNeeded) reasons.push("仅从名称看到合作/高收费线索，尚未匹配到学费或招生备注，不能直接按高收费下结论。");
 
@@ -2431,6 +2720,15 @@ function initInteractions() {
     event.preventDefault();
     await createAdminLicenses(licenseAdminForm, licenseAdminForm.querySelector(".admin-submit"));
   });
+  ["#adminSearch", "#adminPlanFilter", "#adminStatusFilter"].forEach((selector) => {
+    document.querySelector(selector)?.addEventListener("change", () => loadAdminDashboard(null, { silent: true }));
+  });
+  document.querySelector("#adminSearch")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      loadAdminDashboard(null);
+    }
+  });
 
   document.querySelector("#downloadTemplate")?.addEventListener("click", downloadTemplate);
   initFileUpload();
@@ -2463,6 +2761,29 @@ function initInteractions() {
         .filter(Boolean)
         .join("\n");
       if (text) copyPlainText(text, "已复制全部授权码");
+      return;
+    }
+
+    const adminRefresh = event.target.closest("[data-admin-refresh]");
+    if (adminRefresh) {
+      loadAdminDashboard(adminRefresh);
+      return;
+    }
+
+    const adminCopyCode = event.target.closest("[data-admin-copy-code]");
+    if (adminCopyCode && !adminCopyCode.disabled) {
+      copyPlainText(adminCopyCode.dataset.adminCopyCode || "", "已复制授权码");
+      return;
+    }
+
+    if (event.target.closest("[data-admin-export-licenses]")) {
+      exportAdminLicensesCsv();
+      return;
+    }
+
+    const adminStatusButton = event.target.closest("[data-admin-license-status]");
+    if (adminStatusButton) {
+      updateAdminLicenseStatus(adminStatusButton);
       return;
     }
 

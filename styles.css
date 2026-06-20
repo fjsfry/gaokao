@@ -9900,6 +9900,341 @@ main > section.app-view,
   white-space: normal;
 }
 
+/* 20260620 admin console */
+.admin-console-grid {
+  align-items: stretch;
+}
+
+.admin-panel-title,
+.admin-dashboard-head,
+.admin-card-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-panel-title {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-panel-title div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-panel-title span {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: #e8f7f4;
+  color: var(--teal);
+  font-weight: 950;
+}
+
+.admin-panel-title strong,
+.admin-dashboard-head h3,
+.admin-card-title strong {
+  color: var(--navy);
+  font-weight: 950;
+}
+
+.admin-panel-title small,
+.admin-dashboard-head p,
+.admin-card-title small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-dashboard-panel {
+  display: grid;
+  gap: 22px;
+  margin-top: 24px;
+  padding: clamp(22px, 3vw, 30px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--shadow);
+}
+
+.admin-dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-metric-grid article {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+  padding: 16px;
+  border: 1px solid #dce9e7;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f7fcfb);
+}
+
+.admin-metric-grid svg {
+  width: 22px;
+  height: 22px;
+  color: var(--teal);
+}
+
+.admin-metric-grid span {
+  color: #5c7280;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-metric-grid strong {
+  color: var(--navy);
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.admin-metric-grid small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.28fr) minmax(150px, 0.28fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.admin-filter-row label {
+  display: grid;
+  gap: 7px;
+  color: #27485a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-filter-row input,
+.admin-filter-row select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d8e6e5;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.admin-filter-row input {
+  padding: 0 13px;
+}
+
+.admin-filter-row select {
+  padding: 0 34px 0 12px;
+}
+
+.admin-data-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.72fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-table-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: var(--soft-shadow);
+}
+
+.admin-card-title {
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-data-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.admin-data-table.compact-table {
+  min-width: 560px;
+}
+
+.admin-data-table th,
+.admin-data-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf3f2;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-data-table th {
+  background: #f5fbfa;
+  color: #476273;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.admin-data-table td,
+.admin-data-table td strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.admin-data-table td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-data-table code {
+  display: inline-block;
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  color: #073f48;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #eef3f3;
+  color: #516675;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.admin-status.success {
+  background: #e6f7ef;
+  color: #08734d;
+}
+
+.admin-status.warn {
+  background: #fff3da;
+  color: #a15c00;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-row-actions .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.admin-empty.compact {
+  min-height: 220px;
+  padding: 24px;
+}
+
+@media (max-width: 1180px) {
+  .admin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-data-grid,
+  .admin-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-dashboard-head,
+  .admin-panel-title,
+  .admin-dashboard-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-dashboard-actions .outline-button,
+  .admin-filter-row input,
+  .admin-filter-row select {
+    width: 100%;
+  }
+
+  .admin-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-table-wrap {
+    overflow: visible;
+  }
+
+  .admin-data-table,
+  .admin-data-table thead,
+  .admin-data-table tbody,
+  .admin-data-table tr,
+  .admin-data-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-data-table {
+    border-collapse: separate;
+    border-spacing: 0 12px;
+    padding: 12px;
+  }
+
+  .admin-data-table thead {
+    display: none;
+  }
+
+  .admin-data-table tr {
+    padding: 12px;
+    border: 1px solid #dce9e7;
+    border-radius: 18px;
+    background: #fff;
+  }
+
+  .admin-data-table td {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 0;
+  }
+
+  .admin-data-table td::before {
+    content: attr(data-label);
+    color: #627887;
+    font-size: 12px;
+    font-weight: 950;
+  }
+
+  .admin-row-actions {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 1180px) {
   :root {
     --header-height: 122px;
