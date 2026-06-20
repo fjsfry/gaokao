@@ -10474,3 +10474,238 @@ main > section.app-view,
     max-height: none;
   }
 }
+
+/* Final overrides: report tables, preview code report, and pricing cards */
+.pricing-grid {
+  width: min(100%, 1180px);
+  gap: 18px;
+}
+
+.price-card {
+  min-height: 0;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 14px;
+  padding: 28px 24px;
+  border-radius: 12px;
+}
+
+.price-card.featured {
+  transform: translateY(-4px);
+}
+
+.price-card > p {
+  min-height: 42px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.price-card ul {
+  align-content: start;
+  min-height: 132px;
+}
+
+.audience-grid article {
+  grid-template-columns: minmax(0, 1fr) 128px;
+  align-items: center;
+  min-height: 180px;
+  overflow: hidden;
+}
+
+.audience-grid article > div:first-child {
+  padding: 22px 0 22px 24px;
+}
+
+.audience-illustration {
+  position: relative;
+  display: grid;
+  width: 104px;
+  height: 104px;
+  place-items: center;
+  margin-right: 22px;
+  border: 1px solid #cfe8e4;
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, rgba(16, 169, 158, 0.18), rgba(255, 255, 255, 0.86)),
+    #f3fbf9;
+  color: var(--teal);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.audience-illustration::before {
+  content: attr(data-label);
+  color: rgba(6, 156, 143, 0.86);
+  font-size: 34px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.audience-illustration:has(svg)::before {
+  display: none;
+}
+
+.audience-illustration svg {
+  width: 46px;
+  height: 46px;
+  stroke-width: 1.8;
+}
+
+.live-report,
+.ai-report-panel,
+.ai-complete-report,
+.ai-report-body,
+.structured-report,
+.ai-narrative-report {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ai-report-panel,
+.ai-complete-report {
+  overflow: visible;
+}
+
+.report-section-note {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #d6e9e6;
+  border-radius: 8px;
+  background: #f4fbf9;
+  color: #406171;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.ai-table-wrap {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ai-table-wrap:focus {
+  outline: 2px solid rgba(16, 169, 158, 0.28);
+  outline-offset: 2px;
+}
+
+.ai-table-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+
+.ai-table-wrap::-webkit-scrollbar-track {
+  background: #eef7f5;
+  border-radius: 999px;
+}
+
+.ai-table-wrap::-webkit-scrollbar-thumb {
+  background: #8dcac3;
+  border-radius: 999px;
+}
+
+.ai-table-wrap.is-wide::before,
+.ai-table-wrap.is-extra-wide::before {
+  content: "表格可横向滑动";
+  position: sticky;
+  left: 0;
+  display: block;
+  width: max-content;
+  margin: 8px 0 0 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8f7f4;
+  color: #0b7d75;
+  font-size: 11px;
+  font-weight: 900;
+  z-index: 2;
+}
+
+.ai-table-wrap.is-wide .ai-report-table {
+  min-width: 980px;
+}
+
+.ai-table-wrap.is-extra-wide .ai-report-table {
+  min-width: 1240px;
+}
+
+.ai-report-table th,
+.ai-report-table td {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.experience-note {
+  border-left: 4px solid var(--teal);
+}
+
+.experience-table-panel {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.experience-preview-report {
+  border: 1px solid #d6e9e6;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--soft-shadow);
+}
+
+.pdf-export-copy .report-section-note {
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.pdf-export-copy .ai-table-wrap::before {
+  display: none;
+  content: none;
+}
+
+@media (max-width: 980px) {
+  .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .price-card.featured {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .price-card ul {
+    min-height: 0;
+  }
+
+  .audience-grid article {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .audience-grid article > div:first-child {
+    padding: 20px 20px 0;
+  }
+
+  .audience-illustration {
+    width: calc(100% - 40px);
+    height: 82px;
+    margin: 0 20px 20px;
+    border-radius: 18px;
+  }
+
+  .ai-table-wrap.is-wide .ai-report-table {
+    min-width: 900px;
+  }
+
+  .ai-table-wrap.is-extra-wide .ai-report-table {
+    min-width: 1120px;
+  }
+}

@@ -421,8 +421,8 @@
       <section class="checkup-section app-view" data-view="checkup" id="checkup" aria-labelledby="checkup-title">
         <div class="section-heading">
           <span class="eyebrow">在线体检</span>
-          <h2 id="checkup-title">先验证授权码，再生成AI完整报告</h2>
-          <p>先录入考生基础信息，再整理96个志愿，验证授权码后生成可复核、可导出的完整风险报告。</p>
+          <h2 id="checkup-title">先验证授权码，再生成志愿报告</h2>
+          <p>先录入考生基础信息，再整理96个志愿。体验码生成往年位次预览，报告码生成可复核、可导出的完整风险报告。</p>
         </div>
         <div class="checkup-steps" aria-label="在线评估流程">
           <article class="is-active"><span>1</span><strong>填写信息</strong><small>完善考生与志愿信息</small></article>
@@ -574,7 +574,7 @@
                   打开志愿表页面
                 </a>
               </div>
-              <small class="field-help" id="volunteerSummaryStatus">请先确认志愿表顺序，再生成AI完整报告。</small>
+              <small class="field-help" id="volunteerSummaryStatus">请先确认志愿表顺序，再生成志愿报告。</small>
             </div>
 
             <div class="form-card license-panel">
@@ -584,18 +584,18 @@
               </div>
               <p>生成报告前必须先验证授权码。报告成功生成后才会扣减次数。</p>
               <div class="license-input-row">
-                <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26S-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
+                <input id="licenseCode" name="licenseCode" type="text" placeholder="例如 ZL26E-ABCD-EFGH-IJKL-MNPQ" autocomplete="off" />
                 <button class="outline-button" type="button" data-license-check>
                   <i data-lucide="key-round" aria-hidden="true"></i>
                   验证授权码
                 </button>
               </div>
-              <small class="license-status" id="licenseStatus" data-tone="muted">请先输入授权码并验证，再生成AI完整报告。</small>
+              <small class="license-status" id="licenseStatus" data-tone="muted">请先输入授权码并验证；体验码生成位次预览，报告码生成完整报告。</small>
             </div>
             <textarea class="sr-only" id="volunteers" name="volunteers" rows="8" tabindex="-1" aria-label="志愿表标准化内容"></textarea>
             <button class="solid-button form-submit" type="submit">
               <i data-lucide="activity" aria-hidden="true"></i>
-              验证授权码并生成AI完整报告
+              验证授权码并生成报告
             </button>
           </form>
 
@@ -1050,21 +1050,21 @@
               <h3>高考家庭</h3>
               <p>为孩子找到志愿风险，降低填报不确定性，把最后关口牢牢把住。</p>
             </div>
-            <img src="https://images.unsplash.com/photo-1596495577886-d920f1fb7238?auto=format&fit=crop&w=520&q=80" alt="家长与学生讨论志愿" />
+            <div class="audience-illustration" data-label="家" aria-hidden="true"><i data-lucide="users-round"></i></div>
           </article>
           <article>
             <div>
               <h3>考生本人</h3>
               <p>了解每个志愿可能面临的位次、选科、专业方向与学费问题。</p>
             </div>
-            <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=520&q=80" alt="学生查看学习资料" />
+            <div class="audience-illustration" data-label="生" aria-hidden="true"><i data-lucide="graduation-cap"></i></div>
           </article>
           <article>
             <div>
               <h3>志愿填报咨询师</h3>
               <p>为客户提供标准化、可解释的诊断报告，提升专业度与服务效率。</p>
             </div>
-            <img src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=520&q=80" alt="咨询师办公" />
+            <div class="audience-illustration" data-label="师" aria-hidden="true"><i data-lucide="clipboard-check"></i></div>
           </article>
         </div>
       </section>
@@ -1077,12 +1077,12 @@
         <div class="pricing-grid">
           <article class="price-card">
             <span class="plan-label">体验预览版</span>
-            <p>领取体验授权码后，了解风险概况</p>
+            <p>领取体验授权码后，先查看每条志愿往年位次</p>
             <div class="price">￥<strong>0</strong></div>
             <ul>
-              <li>风险总览</li>
-              <li>全表逐条AI诊断</li>
-              <li>风险分布概览</li>
+              <li>体验码可无限次使用</li>
+              <li>仅展示逐条往年位次</li>
+              <li>不生成AI完整报告</li>
             </ul>
             <a class="solid-button" href="#/checkup">立即体验</a>
           </article>
@@ -1132,7 +1132,7 @@
           <h2 id="service-process-title">购买后的服务流程清晰可控</h2>
         </div>
         <div class="service-timeline">
-          <article><span>1</span><h3>验证授权码</h3><p>领取或购买授权码后，上传志愿表并生成全表风险概况和逐条去留建议。</p></article>
+          <article><span>1</span><h3>验证授权码</h3><p>领取体验码可先查看往年位次；购买报告码后可生成完整诊断报告。</p></article>
           <article><span>2</span><h3>付款获取授权码</h3><p>顾问按套餐发送单次、三次或填报季报告码，不需要注册账号。</p></article>
           <article><span>3</span><h3>生成完整报告</h3><p>输入授权码后生成家庭可读版完整报告，成功生成后才扣次数。</p></article>
           <article><span>4</span><h3>修改后再次复查</h3><p>三次码和填报季卡支持调整志愿表后继续复核。</p></article>
@@ -1156,10 +1156,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr><td>整表AI风险诊断</td><td>支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
-                <tr><td>96志愿逐条诊断</td><td>预览支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>整表AI风险诊断</td><td>不支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>96志愿逐条诊断</td><td>仅往年位次</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>报告生成次数</td><td>0次</td><td>1次</td><td>3次</td><td>填报季内不限次</td></tr>
-                <tr><td>顾问沟通摘要</td><td>基础</td><td>支持</td><td>支持</td><td>支持</td></tr>
+                <tr><td>顾问沟通摘要</td><td>不支持</td><td>支持</td><td>支持</td><td>支持</td></tr>
                 <tr><td>重新调整后复查</td><td>可重新预览</td><td>需新码</td><td>支持</td><td>支持</td></tr>
               </tbody>
             </table>
@@ -1228,6 +1228,7 @@
                 <div>
                   <label for="adminPlan">套餐类型</label>
                   <select id="adminPlan" name="plan">
+                    <option value="preview">体验预览码</option>
                     <option value="single">单次报告码</option>
                     <option value="triple">三次复查码</option>
                     <option value="season">填报季卡</option>
@@ -1298,6 +1299,7 @@
                 套餐
                 <select id="adminPlanFilter">
                   <option value="all">全部套餐</option>
+                  <option value="preview">体验预览码</option>
                   <option value="single">单次报告码</option>
                   <option value="triple">三次复查码</option>
                   <option value="season">填报季卡</option>
@@ -1448,8 +1450,8 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="./assets/html2canvas.min.js?v=20260620-pdf-export-v2"></script>
-    <script src="./assets/jspdf.umd.min.js?v=20260620-pdf-export-v2"></script>
-    <script src="./app.js?v=20260620-pdf-export-v2"></script>
+    <script src="./assets/html2canvas.min.js?v=20260620-preview-report-v3"></script>
+    <script src="./assets/jspdf.umd.min.js?v=20260620-preview-report-v3"></script>
+    <script src="./app.js?v=20260620-preview-report-v3"></script>
   </body>
 </html>

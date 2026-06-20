@@ -138,6 +138,10 @@ function normalizeEnteredLicenseCode(value) {
     .toUpperCase();
 }
 
+function isPreviewLicense(license) {
+  return String(license?.plan || "") === "preview" || Boolean(license?.previewOnly);
+}
+
 function formatDate(value) {
   if (!value) return "长期有效";
   const date = new Date(value);
@@ -147,6 +151,9 @@ function formatDate(value) {
 
 function describeLicense(license) {
   if (!license) return "";
+  if (isPreviewLicense(license)) {
+    return `${license.planLabel || "体验预览码"}已通过；可不限次查看每个志愿的往年位次，不生成AI完整报告；有效期：${formatDate(license.expiresAt)}。`;
+  }
   if (license.unlimited) {
     const limit = Number(license.maxUsesPerDay || 0);
     return `${license.planLabel}已通过；${limit > 0 ? `每日最多生成${limit}次完整报告` : "不限制生成次数"}；有效期：${formatDate(license.expiresAt)}。`;
@@ -174,7 +181,7 @@ async function verifyLicenseCode(button, options = {}) {
   if (!licenseCode) {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("请先输入授权码。未验证前不能生成完整报告。", "warn");
+    renderLicenseStatus("请先输入授权码。未验证前不能生成报告或预览。", "warn");
     toast("请输入授权码");
     document.querySelector("#licenseCode")?.focus();
     if (required) throw new Error("请先输入授权码");
@@ -225,14 +232,14 @@ async function ensureLicenseReady() {
   if (!normalized) {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("请先输入授权码并验证，通过后才能生成完整报告。", "warn");
+    renderLicenseStatus("请先输入授权码并验证，通过后才能生成报告或预览。", "warn");
     document.querySelector("#licenseCode")?.focus();
     throw new Error("请先输入授权码");
   }
   if (latestLicenseState && latestVerifiedLicenseCode === normalized) {
     return latestLicenseState;
   }
-  renderLicenseStatus("正在验证授权码，通过后即可生成完整报告。", "muted");
+  renderLicenseStatus("正在验证授权码，通过后即可生成报告或预览。", "muted");
   return verifyLicenseCode(null, { required: true, successToast: false });
 }
 
@@ -248,6 +255,9 @@ function getLicenseAdminPayload(form) {
 }
 
 function describeCreatedLicense(license) {
+  if (isPreviewLicense(license)) {
+    return `${license.planLabel || "体验预览码"}，不限次数查看每条志愿往年位次，不生成AI完整报告`;
+  }
   if (license.unlimited) {
     const limit = Number(license.maxUsesPerDay || 0);
     return `${license.planLabel}，填报季内可重复生成${limit > 0 ? `，每日上限${limit}次` : ""}`;
@@ -373,6 +383,7 @@ function getAdminDashboardPayload() {
 function adminEventLabel(type) {
   return {
     verify: "验证",
+    preview: "生成体验预览",
     consume: "生成报告",
     refund: "返还次数",
     disable: "状态变更"
@@ -518,7 +529,7 @@ function renderAdminEventTable(events = []) {
             (item) => `
               <tr>
                 <td data-label="时间">${escapeHTML(formatDate(item.createdAt))}</td>
-                <td data-label="事件"><span class="admin-status ${item.eventType === "consume" ? "success" : "muted"}">${escapeHTML(adminEventLabel(item.eventType))}</span></td>
+                <td data-label="事件"><span class="admin-status ${["consume", "preview"].includes(item.eventType) ? "success" : "muted"}">${escapeHTML(adminEventLabel(item.eventType))}</span></td>
                 <td data-label="授权码">${escapeHTML(item.codePrefix || "-")}<small>${escapeHTML(item.planLabel || "")}</small></td>
                 <td data-label="客户/场景">
                   <strong>${escapeHTML(item.customerNote || "未填写备注")}</strong>
@@ -1526,6 +1537,16 @@ ${clueItems || "暂无明显证据缺口，最终概率和去留建议以AI完�
 `;
 }
 
+function formatMarkdownInline(value) {
+  return escapeHTML(value).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+function reportTableWrapClass(columnCount) {
+  return ["ai-table-wrap", columnCount >= 6 ? "is-wide" : "", columnCount >= 9 ? "is-extra-wide" : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function renderMarkdownTable(lines) {
   const rows = lines
     .map((line) =>
@@ -1539,10 +1560,10 @@ function renderMarkdownTable(lines) {
   if (rows.length < 2) return "";
   const header = rows[0];
   const body = rows.slice(2);
-  return `<div class="ai-table-wrap"><table class="ai-report-table"><thead><tr>${header
-    .map((cell) => `<th>${escapeHTML(cell)}</th>`)
+  return `<div class="${reportTableWrapClass(header.length)}" tabindex="0" aria-label="表格可横向滚动"><table class="ai-report-table"><thead><tr>${header
+    .map((cell) => `<th>${formatMarkdownInline(cell)}</th>`)
     .join("")}</tr></thead><tbody>${body
-    .map((row) => `<tr>${header.map((_cell, index) => `<td>${escapeHTML(row[index] || "")}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${header.map((_cell, index) => `<td>${formatMarkdownInline(row[index] || "")}</td>`).join("")}</tr>`)
     .join("")}</tbody></table></div>`;
 }
 
@@ -1564,7 +1585,7 @@ function markdownToHTML(markdown) {
     }
 
     if (/^#{1,3}\s+/.test(current)) {
-      html.push(`<h4>${escapeHTML(current.replace(/^#{1,3}\s+/, ""))}</h4>`);
+      html.push(`<h4>${formatMarkdownInline(current.replace(/^#{1,3}\s+/, ""))}</h4>`);
       index += 1;
       continue;
     }
@@ -1585,7 +1606,7 @@ function markdownToHTML(markdown) {
         listLines.push(lines[index].trim());
         index += 1;
       }
-      html.push(`<ul>${listLines.map((line) => `<li>${escapeHTML(line.replace(/^(\d+\.|-|•)\s+/, ""))}</li>`).join("")}</ul>`);
+      html.push(`<ul>${listLines.map((line) => `<li>${formatMarkdownInline(line.replace(/^(\d+\.|-|•)\s+/, ""))}</li>`).join("")}</ul>`);
       continue;
     }
 
@@ -1600,14 +1621,14 @@ function markdownToHTML(markdown) {
       paragraphLines.push(lines[index].trim());
       index += 1;
     }
-    html.push(`<p>${escapeHTML(paragraphLines.join("\n")).replace(/\n/g, "<br />")}</p>`);
+    html.push(`<p>${formatMarkdownInline(paragraphLines.join("\n")).replace(/\n/g, "<br />")}</p>`);
   }
 
   return html.join("");
 }
 
 function tableHTML(headers, rows) {
-  return `<div class="ai-table-wrap"><table class="ai-report-table"><thead><tr>${headers
+  return `<div class="${reportTableWrapClass(headers.length)}" tabindex="0" aria-label="表格可横向滚动"><table class="ai-report-table"><thead><tr>${headers
     .map((header) => `<th>${escapeHTML(header)}</th>`)
     .join("")}</tr></thead><tbody>${rows
     .map((row) => `<tr>${headers.map((_header, index) => `<td>${escapeHTML(row[index] ?? "")}</td>`).join("")}</tr>`)
@@ -1742,6 +1763,7 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
       <h4>优先修改清单</h4>
       ${tableHTML(["序号", "院校/专业", "层次", "预估概率", "可报判断", "去留建议", "主要原因"], priorityRows.length ? priorityRows : [["-", "暂无强制替换项", "-", "-", "可报", "继续核验", "建议核对当年招生计划和院校章程"]])}
       <h4>逐项诊断摘要（覆盖全部志愿）</h4>
+      <p class="report-section-note">以下为当前志愿表的全量明细，按志愿顺序展示，不省略中间志愿；完整 PDF 会同步导出本表全部数据。</p>
       ${tableHTML(["序号", "院校", "专业", "层次", "预估概率", "合理性", "去留", "风险", "证据", "计划/统计资料"], detailRows)}
     </div>
   `;
@@ -1941,6 +1963,89 @@ function renderRiskOverviewWindow(items, summary) {
   `;
 }
 
+function rankCell(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? number.toLocaleString("zh-CN") : "-";
+}
+
+function rankSourceLabel(source) {
+  return {
+    "public-data": "命中位次记录",
+    "score-only": "仅命中分数记录",
+    estimated: "需人工复核"
+  }[source] || "需人工复核";
+}
+
+function renderExperiencePreviewReport(formData, summary, diagnoses, dataContext) {
+  const target = document.querySelector("#liveReport");
+  if (!target) return;
+  const rows = diagnoses.map((item) => [
+    item.orderNo,
+    item.schoolName,
+    item.majorName,
+    rankCell(item.ranks?.["2023"]),
+    rankCell(item.ranks?.["2024"]),
+    rankCell(item.ranks?.["2025"]),
+    rankCell(item.ranks?.weightedRank),
+    rankSourceLabel(item.ranks?.source),
+    getVolunteerPlanStatLabel(item)
+  ]);
+  target.innerHTML = `
+    <div class="live-result experience-preview-result">
+      <div class="result-head">
+        <div>
+          <span class="eyebrow">体验预览已生成</span>
+          <h3>${escapeHTML(formData.subject || "科类")} / ${escapeHTML(formData.batch || "批次")} / ${summary.total}条志愿</h3>
+          <p class="result-subtitle">体验码仅展示每个志愿匹配到的往年位次和资料状态，帮助你先判断志愿表是否需要进一步复核。</p>
+        </div>
+        <div class="result-score ai-score-badge">
+          <span>授权类型</span>
+          <strong>体验码</strong>
+        </div>
+      </div>
+
+      <div class="result-cards">
+        <article class="result-card"><span>志愿数量</span><strong>${summary.total}</strong><small>按当前志愿表顺序</small></article>
+        <article class="result-card"><span>位次命中</span><strong>${summary.publicMatched}</strong><small>直接匹配公开位次</small></article>
+        <article class="result-card"><span>资料线索</span><strong>${summary.planMatched + summary.statMatched}</strong><small>招生计划/专业统计</small></article>
+        <article class="result-card"><span>参考年份</span><strong>${escapeHTML(dataContext.dataYear || "近年")}</strong><small>以位次为主，不按分数判断</small></article>
+      </div>
+
+      <div class="diagnosis-card experience-note">
+        <span>体验码说明</span>
+        <h4>本次不生成AI完整报告，只做往年位次体验预览</h4>
+        <p>如果需要逐条录取概率、合理性判断、去留建议、风险原因和PDF完整报告，请购买单次报告码、三次复查码或填报季卡后再生成。</p>
+      </div>
+
+      <div class="ai-report-panel experience-table-panel">
+        <div class="ai-complete-report experience-preview-report">
+          <div class="ai-report-head">
+            <span>体验预览明细</span>
+            <strong>往年位次表</strong>
+          </div>
+          <div class="ai-report-body">
+            <h4>每个志愿的往年位次与资料状态</h4>
+            <p class="report-section-note">表格覆盖当前输入的全部志愿。横向滑动可查看右侧“资料线索”列。</p>
+            ${tableHTML(["序号", "院校", "专业", "2023最低位次", "2024最低位次", "2025最低位次", "加权参考位次", "匹配状态", "资料线索"], rows)}
+          </div>
+        </div>
+      </div>
+
+      <div class="next-actions ai-direct-actions">
+        <button class="solid-button" type="button" data-open-modal="contactModal" data-package="单次报告码">
+          <i data-lucide="key-round" aria-hidden="true"></i>
+          购买完整报告码
+        </button>
+        <button class="outline-button" type="button" data-open-modal="contactModal" data-package="体验预览后咨询">
+          <i data-lucide="message-square-text" aria-hidden="true"></i>
+          咨询顾问
+        </button>
+      </div>
+    </div>
+  `;
+  createIcons();
+}
+
 function setRiskWindowExpanded(expanded) {
   const windowNode = document.querySelector("#riskOverviewWindow");
   if (!windowNode) return;
@@ -1957,11 +2062,15 @@ function setRiskWindowExpanded(expanded) {
 }
 
 async function renderReport(formData) {
-  await ensureLicenseReady();
+  const verifiedLicense = await ensureLicenseReady();
   formData.licenseCode = getLicenseCode();
   const sourceRows = parseVolunteers(formData.volunteers || sampleVolunteerText);
   const volunteers = sourceRows.length ? sourceRows : parseVolunteers(sampleVolunteerText);
-  renderReportLoading("授权码已通过，正在按位次和志愿顺序生成完整报告。");
+  renderReportLoading(
+    isPreviewLicense(verifiedLicense)
+      ? "体验码已通过，正在按每个志愿匹配往年位次。"
+      : "授权码已通过，正在按位次和志愿顺序生成完整报告。"
+  );
   let dataContext = {};
   try {
     dataContext = await requestDataContext(formData, volunteers);
@@ -1983,6 +2092,12 @@ async function renderReport(formData) {
     estimatedCount: diagnoses.filter((item) => item.ranks.source === "estimated").length
   };
   latestReportPayload = { formData, sourceVolunteers: volunteers, summary, diagnoses, dataContext, aiRematch };
+
+  if (isPreviewLicense(latestLicenseState || verifiedLicense)) {
+    renderExperiencePreviewReport(formData, summary, diagnoses, dataContext);
+    toast("体验预览已生成");
+    return;
+  }
 
   document.querySelector("#liveReport").innerHTML = `
     <div class="live-result ai-direct-result">
@@ -2085,6 +2200,8 @@ function getPdfLibraries() {
 
 function pdfTableColumns(count) {
   if (count >= 10) return "34px 1fr 1fr 46px 72px 58px 50px 50px 58px 1.2fr";
+  if (count === 9) return "34px 0.95fr 0.95fr 64px 64px 64px 78px 76px 1.2fr";
+  if (count === 8) return "38px 0.95fr 0.95fr 50px 76px 78px 1.25fr 0.78fr";
   if (count === 7) return "42px 1.3fr 54px 78px 66px 62px 1.4fr";
   if (count === 4) return "72px 90px 90px 1fr";
   if (count === 3) return "120px 80px 1fr";
@@ -2593,7 +2710,7 @@ function updateVolunteerSummary(summary = {}) {
   if (detailNode) {
     detailNode.textContent =
       count > 0
-        ? `当前将按${count}条志愿生成AI完整报告；如需调整顺序，请先进入志愿表页面。`
+        ? `当前将按${count}条志愿生成报告；如需调整顺序，请先进入志愿表页面。`
         : "尚未识别到完整志愿，请先上传 Excel/CSV 或在线录入。";
   }
   if (statusNode) {
@@ -2602,7 +2719,7 @@ function updateVolunteerSummary(summary = {}) {
         ? "志愿数量已接近完整表，建议重点检查最后20个保底和垫底志愿。"
         : count > 0
           ? "已读取志愿表，数量较少时请确认是否只是局部测试或预览。"
-          : "请先确认志愿表顺序，再生成AI完整报告。";
+          : "请先确认志愿表顺序，再生成志愿报告。";
   }
 }
 
@@ -2808,7 +2925,7 @@ function initInteractions() {
   document.querySelector("#licenseCode")?.addEventListener("input", () => {
     latestLicenseState = null;
     latestVerifiedLicenseCode = "";
-    renderLicenseStatus("授权码已修改，请重新验证；未通过前不能生成完整报告。", "muted");
+    renderLicenseStatus("授权码已修改，请重新验证；未通过前不能生成报告或预览。", "muted");
   });
 
   form?.addEventListener("submit", async (event) => {
@@ -2817,7 +2934,7 @@ function initInteractions() {
     const original = submit?.innerHTML;
     if (submit) {
       submit.disabled = true;
-      submit.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 正在生成AI完整报告';
+      submit.innerHTML = '<i data-lucide="loader-circle" aria-hidden="true"></i> 正在生成报告';
       createIcons();
     }
     syncVolunteerTextareaFromTable();
@@ -2831,7 +2948,7 @@ function initInteractions() {
     } finally {
       if (submit) {
         submit.disabled = false;
-        submit.innerHTML = original || '<i data-lucide="activity" aria-hidden="true"></i> 验证授权码并生成AI完整报告';
+        submit.innerHTML = original || '<i data-lucide="activity" aria-hidden="true"></i> 验证授权码并生成报告';
         createIcons();
       }
     }

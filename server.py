@@ -47,16 +47,19 @@ PUBLIC_TABLES = {
     "school_admission_summary",
 }
 LICENSE_PLAN_LABELS = {
+    "preview": "体验预览码",
     "single": "单次报告码",
     "triple": "三次复查码",
     "season": "填报季卡",
 }
 LICENSE_PLAN_USES = {
+    "preview": None,
     "single": 1,
     "triple": 3,
     "season": None,
 }
 LICENSE_PLAN_MARKS = {
+    "preview": "E",
     "single": "S",
     "triple": "T",
     "season": "Y",
@@ -284,6 +287,10 @@ def plan_label(plan: Any) -> str:
     return LICENSE_PLAN_LABELS.get(str(plan or ""), "授权码")
 
 
+def license_display_label(row: dict[str, Any]) -> str:
+    return "体验预览码" if is_preview_license(row) else plan_label(row.get("plan"))
+
+
 def require_license_admin(payload: dict[str, Any]) -> None:
     supplied = str(payload.get("adminToken") or payload.get("token") or "").strip()
     if not supplied:
@@ -351,6 +358,27 @@ def insert_license_record(record: dict[str, Any]) -> dict[str, Any]:
         response.raise_for_status()
     except requests.HTTPError as exc:
         text = exc.response.text if exc.response is not None else ""
+        if record.get("plan") == "preview" and (
+            "report_licenses_plan_check" in text or "violates check constraint" in text
+        ):
+            fallback_record = {
+                **record,
+                "plan": "season",
+                "total_uses": None,
+                "remaining_uses": None,
+                "max_uses_per_day": 0,
+            }
+            response = HTTP.post(
+                supabase_service_url("report_licenses"),
+                headers=supabase_service_headers({"Prefer": "return=representation"}),
+                json=fallback_record,
+                timeout=12,
+            )
+            response.raise_for_status()
+            rows = response.json()
+            if not isinstance(rows, list) or not rows:
+                raise RuntimeError("Unexpected license create response")
+            return rows[0]
         if "code_sealed" not in text:
             raise
         legacy_record = {key: value for key, value in record.items() if key != "code_sealed"}
@@ -373,11 +401,12 @@ def public_created_license(code: str, row: dict[str, Any]) -> dict[str, Any]:
     return {
         "code": code,
         "codePrefix": row.get("code_prefix"),
-        "plan": row.get("plan"),
-        "planLabel": plan_label(row.get("plan")),
+        "plan": "preview" if is_preview_license(row) else row.get("plan"),
+        "planLabel": license_display_label(row),
         "remainingUses": None if unlimited else int(row.get("remaining_uses") or 0),
         "totalUses": None if unlimited else int(row.get("total_uses") or 0),
         "unlimited": unlimited,
+        "previewOnly": is_preview_license(row),
         "maxUsesPerDay": row.get("max_uses_per_day"),
         "expiresAt": row.get("expires_at"),
     }
@@ -491,7 +520,8 @@ def filter_admin_licenses(rows: list[dict[str, Any]], payload: dict[str, Any]) -
                     return False
             elif str(row.get("status") or "") != status_filter:
                 return False
-        if plan_filter != "all" and str(row.get("plan") or "") != plan_filter:
+        row_plan = "preview" if is_preview_license(row) else str(row.get("plan") or "")
+        if plan_filter != "all" and row_plan != plan_filter:
             return False
         if query:
             haystack = " ".join(
@@ -515,12 +545,13 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
     license_id = str(row.get("id") or "")
     events = events_by_license.get(license_id, [])
     consume_count = sum(1 for event in events if event.get("event_type") == "consume")
+    preview_count = sum(1 for event in events if event.get("event_type") == "preview")
     clean_note, sealed_from_note = split_license_vault_note(row.get("customer_note"))
     total = row.get("total_uses")
     remaining = row.get("remaining_uses")
     unlimited = is_unlimited_license(row)
     if unlimited:
-        used = consume_count
+        used = consume_count + preview_count
     else:
         used = max(0, int(total or 0) - int(remaining or 0))
     full_code = pretty_license_code(unseal_license_code(row.get("code_sealed") or sealed_from_note))
@@ -530,8 +561,8 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
         "codePrefix": row.get("code_prefix"),
         "codeDisplay": full_code or f"{row.get('code_prefix', '旧码')}******",
         "canReveal": bool(full_code),
-        "plan": row.get("plan"),
-        "planLabel": plan_label(row.get("plan")),
+        "plan": "preview" if is_preview_license(row) else row.get("plan"),
+        "planLabel": license_display_label(row),
         "status": row.get("status"),
         "statusLabel": license_status_label(row),
         "customerNote": clean_note,
@@ -539,6 +570,7 @@ def public_admin_license(row: dict[str, Any], events_by_license: dict[str, list[
         "remainingUses": None if unlimited else int(remaining or 0),
         "usedUses": used,
         "unlimited": unlimited,
+        "previewOnly": is_preview_license(row),
         "maxUsesPerDay": row.get("max_uses_per_day"),
         "createdAt": row.get("created_at"),
         "updatedAt": row.get("updated_at"),
@@ -559,7 +591,7 @@ def public_admin_event(event: dict[str, Any], license_lookup: dict[str, dict[str
         "id": event.get("id"),
         "licenseId": license_id,
         "codePrefix": row.get("code_prefix") or "",
-        "planLabel": plan_label(row.get("plan")),
+        "planLabel": license_display_label(row) if row else "",
         "customerNote": clean_note,
         "eventType": event.get("event_type"),
         "usesDelta": event.get("uses_delta"),
@@ -605,7 +637,7 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
     unique_devices = {str(event.get("request_fingerprint") or "") for event in events if event.get("request_fingerprint")}
     plan_counts: dict[str, int] = {}
     for row in rows:
-        plan = str(row.get("plan") or "unknown")
+        plan = "preview" if is_preview_license(row) else str(row.get("plan") or "unknown")
         plan_counts[plan] = plan_counts.get(plan, 0) + 1
 
     dashboard_licenses = [public_admin_license(row, events_by_license) for row in filtered_rows[:200]]
@@ -671,8 +703,12 @@ def update_license_status(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "license": public_license_state(row)}
 
 
+def is_preview_license(row: dict[str, Any]) -> bool:
+    return str(row.get("plan")) == "preview" or str(row.get("code_prefix") or "").upper().startswith("ZL26E")
+
+
 def is_unlimited_license(row: dict[str, Any]) -> bool:
-    return str(row.get("plan")) == "season" or row.get("total_uses") is None
+    return str(row.get("plan")) in {"preview", "season"} or row.get("total_uses") is None
 
 
 def validate_license_row(row: dict[str, Any]) -> None:
@@ -693,11 +729,12 @@ def public_license_state(row: dict[str, Any]) -> dict[str, Any]:
         "ok": True,
         "id": row.get("id"),
         "codePrefix": row.get("code_prefix"),
-        "plan": row.get("plan"),
-        "planLabel": plan_label(row.get("plan")),
+        "plan": "preview" if is_preview_license(row) else row.get("plan"),
+        "planLabel": license_display_label(row),
         "remainingUses": remaining,
         "totalUses": total,
         "unlimited": unlimited,
+        "previewOnly": is_preview_license(row),
         "maxUsesPerDay": row.get("max_uses_per_day"),
         "expiresAt": row.get("expires_at"),
         "lastUsedAt": row.get("last_used_at"),
@@ -774,6 +811,8 @@ def consume_license_code(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     row = verify_license_code(value)
+    if is_preview_license(row):
+        raise PermissionError("体验预览码仅支持查看每个志愿的往年位次，不支持生成完整AI报告。")
     now = utc_now_iso()
 
     if is_unlimited_license(row):
@@ -816,6 +855,38 @@ def consume_license_code(
         metadata=metadata,
     )
     return consumed
+
+
+def record_preview_license_use(
+    row: dict[str, Any],
+    *,
+    request_fingerprint: str,
+    client_ip: str,
+    user_agent: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    if not is_preview_license(row):
+        return
+    now = utc_now_iso()
+    try:
+        HTTP.patch(
+            supabase_service_url("report_licenses"),
+            params={"id": f"eq.{row['id']}", "status": "eq.active"},
+            headers=supabase_service_headers({"Prefer": "return=minimal"}),
+            json={"last_used_at": now, "updated_at": now},
+            timeout=12,
+        ).raise_for_status()
+        insert_license_event(
+            row,
+            event_type="preview",
+            uses_delta=0,
+            request_fingerprint=request_fingerprint,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            metadata=metadata,
+        )
+    except Exception:
+        pass
 
 
 def refund_license_use(
@@ -1674,6 +1745,19 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return
                 license_row = verify_license_code(license_code)
                 context = fetch_data_context(payload)
+                record_preview_license_use(
+                    license_row,
+                    request_fingerprint=self.request_fingerprint(),
+                    client_ip=self.client_ip(),
+                    user_agent=self.user_agent(),
+                    metadata={
+                        "source": "rank_preview",
+                        "subject": form_data.get("subject"),
+                        "batch": form_data.get("batch"),
+                        "rank": form_data.get("rank"),
+                        "diagnosis_count": len(payload.get("volunteers") or []),
+                    },
+                )
                 self.write_json({"ok": True, "context": context, "license": public_license_state(license_row)})
             except ValueError as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -1712,6 +1796,8 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             try:
                 license_row = verify_license_code(license_code)
+                if is_preview_license(license_row):
+                    raise PermissionError("体验预览码仅支持查看每个志愿的往年位次，不支持AI复核。")
                 api_key, model = get_deepseek_config()
             except ValueError as exc:
                 self.write_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -1809,6 +1895,8 @@ class AppHandler(SimpleHTTPRequestHandler):
 
         try:
             checked_license_row = verify_license_code(license_code)
+            if is_preview_license(checked_license_row):
+                raise PermissionError("体验预览码仅支持查看每个志愿的往年位次，请购买报告码后生成完整AI报告。")
             if is_unlimited_license(checked_license_row):
                 daily_limit = int(checked_license_row.get("max_uses_per_day") or 20)
                 if daily_limit > 0 and count_license_events_today(str(checked_license_row["id"])) >= daily_limit:

@@ -21,11 +21,13 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 PLAN_USES = {
+    "preview": None,
     "single": 1,
     "triple": 3,
     "season": None,
 }
 PLAN_MARKS = {
+    "preview": "E",
     "single": "S",
     "triple": "T",
     "season": "Y",

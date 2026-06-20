@@ -43,6 +43,7 @@ python server.py
 
 授权码类型：
 
+- `preview`: 体验预览码，不限次数查看每个志愿的往年位次，不调用完整报告 AI。
 - `single`: 单次报告码，完整报告生成 1 次。
 - `triple`: 三次复查码，完整报告生成 3 次。
 - `season`: 填报季卡，不限制总次数，默认每天最多 20 次完整报告。
@@ -59,6 +60,7 @@ supabase/migrations/20260616090000_report_license_codes.sql
 python scripts/generate_license_code.py --plan single --note "客户备注"
 python scripts/generate_license_code.py --plan triple --note "客户备注" --insert
 python scripts/generate_license_code.py --plan season --expires-at 2026-07-31T23:59:59+08:00 --insert
+python scripts/generate_license_code.py --plan preview --note "体验码客户" --insert
 ```
 
 不带 `--insert` 时脚本只输出明文授权码和可手动执行的 SQL；带 `--insert` 时会用 `SUPABASE_SERVICE_ROLE_KEY` 直接写入 Supabase。数据库只保存授权码 HMAC 哈希，明文授权码只会在生成时显示一次。
