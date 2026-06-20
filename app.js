@@ -1750,6 +1750,7 @@ function buildStructuredReportHTML(payload = latestReportPayload) {
 function renderAiReport(content, meta = {}) {
   const target = document.querySelector("#aiReport");
   if (!target) return;
+  const structuredHTML = buildStructuredReportHTML(latestReportPayload);
   target.innerHTML = `
     <div class="ai-complete-report" id="completeReportExport">
       <div class="ai-report-head">
@@ -1757,7 +1758,10 @@ function renderAiReport(content, meta = {}) {
         <strong>${escapeHTML(meta.model ? "AI已生成" : "AI报告")}</strong>
       </div>
       <div class="ai-section-title">家长版完整解读</div>
-      <div class="ai-report-body">${markdownToHTML(content)}</div>
+      <div class="ai-report-body">
+        ${structuredHTML}
+        <div class="ai-narrative-report">${markdownToHTML(content)}</div>
+      </div>
     </div>
     <div class="ai-report-actions">
       <button class="outline-button compact" type="button" data-export-pdf>
@@ -2073,54 +2077,164 @@ async function copyLeadSummary() {
   }
 }
 
+function getPdfLibraries() {
+  const jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+  const html2canvas = window.html2canvas;
+  return { jsPDF, html2canvas };
+}
+
+function pdfTableColumns(count) {
+  if (count >= 10) return "34px 1fr 1fr 46px 72px 58px 50px 50px 58px 1.2fr";
+  if (count === 7) return "42px 1.3fr 54px 78px 66px 62px 1.4fr";
+  if (count === 4) return "72px 90px 90px 1fr";
+  if (count === 3) return "120px 80px 1fr";
+  if (count === 2) return "145px 1fr";
+  return `repeat(${Math.max(1, count)}, minmax(0, 1fr))`;
+}
+
+function convertTablesForPdf(root) {
+  root.querySelectorAll(".ai-report-table").forEach((table) => {
+    const headers = Array.from(table.querySelectorAll("thead th")).map((cell) => cell.textContent.trim());
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr")).map((row) =>
+      Array.from(row.children).map((cell) => cell.textContent.trim())
+    );
+    const columnCount = Math.max(headers.length, ...bodyRows.map((row) => row.length), 1);
+    const template = pdfTableColumns(columnCount);
+    const grid = document.createElement("div");
+    grid.className = "pdf-data-table";
+    grid.style.setProperty("--pdf-table-columns", template);
+
+    const makeRow = (cells, className) => {
+      const row = document.createElement("div");
+      row.className = className;
+      row.style.gridTemplateColumns = template;
+      for (let index = 0; index < columnCount; index += 1) {
+        const cell = document.createElement("div");
+        cell.textContent = cells[index] || "";
+        row.appendChild(cell);
+      }
+      return row;
+    };
+
+    if (headers.length) grid.appendChild(makeRow(headers, "pdf-table-row pdf-table-head"));
+    bodyRows.forEach((row) => grid.appendChild(makeRow(row, "pdf-table-row")));
+
+    const wrap = table.closest(".ai-table-wrap");
+    if (wrap) {
+      wrap.classList.add("pdf-table-wrap");
+      wrap.replaceChildren(grid);
+    } else {
+      table.replaceWith(grid);
+    }
+  });
+}
+
+function addPdfPageBreakSpacers(root, pageHeightPx) {
+  const candidates = Array.from(
+    root.querySelectorAll(
+      ".ai-report-head, .ai-section-title, .structured-report h4, .ai-narrative-report h4, .report-kpi-grid, .ai-report-body > p, .ai-report-body > ul, .ai-narrative-report > p, .ai-narrative-report > ul, .ai-table-wrap, .pdf-table-row"
+    )
+  );
+
+  candidates.forEach((element) => {
+    if (element.classList.contains("pdf-table-head")) return;
+    const rect = element.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    const top = rect.top - rootRect.top;
+    const height = rect.height;
+    if (!height || height > pageHeightPx * 0.86) return;
+    const offsetInPage = top % pageHeightPx;
+    const remaining = pageHeightPx - offsetInPage;
+    if (remaining < Math.min(height + 18, pageHeightPx * 0.34)) {
+      const spacer = document.createElement("div");
+      spacer.className = "pdf-page-break-spacer";
+      spacer.style.height = `${remaining + 10}px`;
+      element.parentNode?.insertBefore(spacer, element);
+    }
+  });
+}
+
+async function buildReportCanvasForPdf(report) {
+  const { html2canvas } = getPdfLibraries();
+  const exportRoot = document.createElement("div");
+  exportRoot.className = "pdf-export-root";
+  const reportCopy = report.cloneNode(true);
+  reportCopy.id = "completeReportExportPdf";
+  reportCopy.classList.add("pdf-export-copy");
+  convertTablesForPdf(reportCopy);
+  exportRoot.appendChild(reportCopy);
+  document.body.appendChild(exportRoot);
+
+  try {
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const pageHeightPx = Math.floor(reportCopy.offsetWidth * (297 / 210));
+    addPdfPageBreakSpacers(reportCopy, pageHeightPx);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return await html2canvas(reportCopy, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: reportCopy.offsetWidth,
+      width: reportCopy.offsetWidth,
+      height: reportCopy.scrollHeight
+    });
+  } finally {
+    exportRoot.remove();
+  }
+}
+
+function saveCanvasAsA4Pdf(canvas, filename) {
+  const { jsPDF } = getPdfLibraries();
+  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+  const pageWidthMm = 210;
+  const pageHeightMm = 297;
+  const pageHeightPx = Math.floor(canvas.width * (pageHeightMm / pageWidthMm));
+  const pageCanvas = document.createElement("canvas");
+  const pageContext = pageCanvas.getContext("2d");
+  pageCanvas.width = canvas.width;
+
+  let renderedHeight = 0;
+  let pageIndex = 0;
+  while (renderedHeight < canvas.height) {
+    const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedHeight);
+    pageCanvas.height = sliceHeight;
+    pageContext.fillStyle = "#ffffff";
+    pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    pageContext.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+    if (pageIndex > 0) pdf.addPage();
+    const imageHeightMm = (sliceHeight / canvas.width) * pageWidthMm;
+    pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, pageWidthMm, imageHeightMm, undefined, "FAST");
+    renderedHeight += sliceHeight;
+    pageIndex += 1;
+  }
+
+  pdf.save(filename);
+  return pageIndex;
+}
+
 async function exportReportPdf() {
   const report = document.querySelector("#completeReportExport");
   if (!report) {
     toast("请先生成完整报告，再导出PDF");
     return;
   }
-  if (typeof window.html2pdf !== "function") {
+  const { jsPDF, html2canvas } = getPdfLibraries();
+  if (typeof jsPDF !== "function" || typeof html2canvas !== "function") {
     toast("PDF导出组件加载失败，请刷新页面后重试");
     return;
   }
 
-  const exportRoot = document.createElement("div");
-  exportRoot.className = "pdf-export-root";
-  const reportCopy = report.cloneNode(true);
-  reportCopy.id = "completeReportExportPdf";
-  reportCopy.classList.add("pdf-export-copy");
-  exportRoot.appendChild(reportCopy);
-  document.body.appendChild(exportRoot);
-
   const filename = `寻鹿升学-完整志愿风险报告-${new Date().toISOString().slice(0, 10)}.pdf`;
-  const options = {
-    margin: [10, 10, 12, 10],
-    filename,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 760,
-      width: 760
-    },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: {
-      mode: ["css", "legacy"],
-      avoid: [".ai-report-head", ".ai-section-title", "tr", "h1", "h2", "h3", "h4"]
-    }
-  };
-
   try {
     toast("正在生成PDF");
-    await window.html2pdf().set(options).from(reportCopy).save();
-    toast("PDF已生成");
+    const canvas = await buildReportCanvasForPdf(report);
+    const pageCount = saveCanvasAsA4Pdf(canvas, filename);
+    toast(`PDF已生成，共${pageCount}页`);
   } catch (error) {
     toast(error.message || "PDF生成失败，请稍后重试");
-  } finally {
-    exportRoot.remove();
   }
 }
 

@@ -9814,11 +9814,11 @@ main > section.app-view,
 }
 
 .pdf-export-root {
-  position: absolute;
+  position: fixed;
   top: 0;
-  left: 0;
-  z-index: -10;
-  width: 760px;
+  left: -12000px;
+  z-index: 1;
+  width: 794px;
   pointer-events: none;
   background: #ffffff;
   color: #0b1d2b;
@@ -9826,10 +9826,10 @@ main > section.app-view,
 
 .pdf-export-copy {
   box-sizing: border-box;
-  width: 760px;
+  width: 794px;
   max-width: none;
   margin: 0;
-  padding: 24px;
+  padding: 34px 38px 40px;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -9858,19 +9858,91 @@ main > section.app-view,
 
 .pdf-export-copy .ai-report-body {
   color: #10243a;
-  padding: 14px 0 0;
-  font-size: 12px;
-  line-height: 1.62;
+  display: block;
+  padding: 16px 0 0;
+  font-size: 11.5px;
+  line-height: 1.58;
 }
 
 .pdf-export-copy .ai-report-head {
-  padding: 0 0 14px;
+  padding: 0 0 16px;
   gap: 12px;
+  border-bottom: 1px solid #d7e7e5;
+}
+
+.pdf-export-copy .ai-report-head span {
+  color: #0b7d75;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pdf-export-copy .ai-report-head strong {
+  color: #0b2032;
+  font-size: 20px;
 }
 
 .pdf-export-copy .ai-report-head span,
 .pdf-export-copy .ai-report-head strong {
   overflow-wrap: anywhere;
+}
+
+.pdf-export-copy .ai-section-title {
+  padding: 16px 0 4px;
+  color: #0b2032;
+  font-size: 16px;
+  border-bottom: 2px solid #11978d;
+}
+
+.pdf-export-copy .structured-report {
+  display: block;
+  padding: 12px 0 2px;
+  border: 0;
+  background: #ffffff;
+}
+
+.pdf-export-copy .structured-report h4,
+.pdf-export-copy .ai-narrative-report h4 {
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #d7e7e5;
+  color: #0b2032;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.pdf-export-copy .report-kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.pdf-export-copy .report-kpi-grid article {
+  min-height: 0;
+  padding: 11px 12px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.pdf-export-copy .report-kpi-grid span {
+  font-size: 10px;
+}
+
+.pdf-export-copy .report-kpi-grid strong {
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.pdf-export-copy .ai-narrative-report {
+  display: block;
+  margin-top: 12px;
+}
+
+.pdf-export-copy .ai-narrative-report p,
+.pdf-export-copy .ai-report-body > p,
+.pdf-export-copy .ai-report-body li {
+  color: #1b3346;
+  font-size: 11.5px;
+  line-height: 1.62;
 }
 
 .pdf-export-copy .ai-table-wrap {
@@ -9898,6 +9970,59 @@ main > section.app-view,
 
 .pdf-export-copy .ai-report-table th {
   white-space: normal;
+}
+
+.pdf-export-copy .pdf-table-wrap {
+  border: 1px solid #d9e8e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pdf-export-copy .pdf-data-table {
+  width: 100%;
+}
+
+.pdf-export-copy .pdf-table-row {
+  display: grid;
+  grid-template-columns: var(--pdf-table-columns);
+  break-inside: avoid;
+  page-break-inside: avoid;
+  border-bottom: 1px solid #e5f0ee;
+  background: #ffffff;
+}
+
+.pdf-export-copy .pdf-table-row:last-child {
+  border-bottom: 0;
+}
+
+.pdf-export-copy .pdf-table-row > div {
+  min-width: 0;
+  padding: 7px 7px;
+  border-right: 1px solid #e5f0ee;
+  color: #263d4e;
+  font-size: 9.4px;
+  line-height: 1.42;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.pdf-export-copy .pdf-table-row > div:last-child {
+  border-right: 0;
+}
+
+.pdf-export-copy .pdf-table-head {
+  background: #f1faf8;
+}
+
+.pdf-export-copy .pdf-table-head > div {
+  color: #0b3b42;
+  font-weight: 900;
+}
+
+.pdf-page-break-spacer {
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 /* 20260620 admin console */
