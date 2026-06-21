@@ -15,6 +15,7 @@ let latestLicenseState = null;
 let latestVerifiedLicenseCode = "";
 let selectedFileName = "";
 let latestAdminDashboard = null;
+let lastTrackedVisitKey = "";
 
 function createIcons() {
   if (window.lucide) {
@@ -75,6 +76,9 @@ function trackSiteVisit() {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
     screen: `${window.screen?.width || 0}x${window.screen?.height || 0}`
   };
+  const visitKey = `${payload.sessionId}|${payload.path}`;
+  if (visitKey === lastTrackedVisitKey) return;
+  lastTrackedVisitKey = visitKey;
   const body = JSON.stringify(payload);
   try {
     if (navigator.sendBeacon) {
@@ -108,7 +112,7 @@ function getRouteView() {
 }
 
 function setActiveView(view = getRouteView(), options = {}) {
-  const { scroll = true, normalizeHash = false } = options;
+  const { scroll = true, normalizeHash = false, trackVisit = false } = options;
   if (view !== "volunteers") {
     setVolunteerWindowExpanded(false);
   }
@@ -129,11 +133,14 @@ function setActiveView(view = getRouteView(), options = {}) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   createIcons();
+  if (trackVisit) {
+    window.setTimeout(trackSiteVisit, 0);
+  }
 }
 
 function initNavigation() {
   setActiveView(getRouteView(), { scroll: false, normalizeHash: true });
-  window.addEventListener("hashchange", () => setActiveView(getRouteView(), { scroll: true, normalizeHash: true }));
+  window.addEventListener("hashchange", () => setActiveView(getRouteView(), { scroll: true, normalizeHash: true, trackVisit: true }));
   document.addEventListener("click", (event) => {
     const link = event.target.closest('a[href^="#/"]');
     if (!link) return;
@@ -611,7 +618,7 @@ function adminVisitViewLabel(view, path = "") {
   return labels[view] || path || "-";
 }
 
-function renderAdminVisitTable(visits = [], hasVisitTable = true) {
+function renderAdminVisitTable(visits = [], hasVisitTable = true, pageBreakdown = []) {
   const target = document.querySelector("#adminVisitTable");
   const countNode = document.querySelector("#adminVisitCount");
   if (!target) return;
@@ -640,7 +647,25 @@ function renderAdminVisitTable(visits = [], hasVisitTable = true) {
     createIcons();
     return;
   }
+  const pageSummary = pageBreakdown.length
+    ? `
+      <div class="admin-visit-summary">
+        ${pageBreakdown
+          .map(
+            (item) => `
+              <article>
+                <span>${escapeHTML(adminVisitViewLabel(item.view, item.path))}</span>
+                <strong>${Number(item.visitCount || 0).toLocaleString("zh-CN")}</strong>
+                <small>${Number(item.visitorCount || 0).toLocaleString("zh-CN")} 位访客</small>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    `
+    : "";
   target.innerHTML = `
+    ${pageSummary}
     <table class="admin-data-table compact-table admin-visit-table">
       <thead>
         <tr>
@@ -682,7 +707,7 @@ function renderAdminDashboard(data) {
   renderAdminMetricGrid(data.stats || {});
   renderAdminLicenseTable(data);
   renderAdminEventTable(data.events || []);
-  renderAdminVisitTable(data.visits || [], data.hasVisitTable !== false);
+  renderAdminVisitTable(data.visits || [], data.hasVisitTable !== false, data.visitPageBreakdown || []);
   if (!data.canRevealCodes) {
     renderAdminStatus("后台已读取旧表结构。历史授权码只能显示前缀；应用数据库迁移后，新码可在后台查看完整码。", "warn");
   }

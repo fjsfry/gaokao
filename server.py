@@ -719,6 +719,42 @@ def public_admin_visit(visit: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_visit_page_breakdown(visits: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    pages: dict[str, dict[str, Any]] = {}
+    for visit in visits:
+        path = str(visit.get("page_path") or "/")[:160]
+        metadata = visit.get("metadata") if isinstance(visit.get("metadata"), dict) else {}
+        entry = pages.setdefault(
+            path,
+            {
+                "path": path,
+                "view": metadata.get("view") or "",
+                "visitCount": 0,
+                "visitors": set(),
+                "lastVisitAt": visit.get("created_at"),
+            },
+        )
+        entry["visitCount"] += 1
+        if visit.get("visitor_key"):
+            entry["visitors"].add(str(visit.get("visitor_key")))
+        current_time = parse_datetime(visit.get("created_at"))
+        previous_time = parse_datetime(entry.get("lastVisitAt"))
+        if current_time and (not previous_time or current_time > previous_time):
+            entry["lastVisitAt"] = visit.get("created_at")
+    rows = []
+    for entry in pages.values():
+        rows.append(
+            {
+                "path": entry["path"],
+                "view": entry["view"],
+                "visitCount": entry["visitCount"],
+                "visitorCount": len(entry["visitors"]),
+                "lastVisitAt": entry["lastVisitAt"],
+            }
+        )
+    return sorted(rows, key=lambda item: (int(item["visitCount"]), str(item.get("lastVisitAt") or "")), reverse=True)[:limit]
+
+
 def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
     require_license_admin(payload)
     rows, can_reveal_codes = get_admin_license_rows()
@@ -773,6 +809,7 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
     dashboard_licenses = [public_admin_license(row, events_by_license) for row in filtered_rows[:200]]
     dashboard_events = [public_admin_event(event, license_lookup) for event in events[:120]]
     dashboard_visits = [public_admin_visit(visit) for visit in visits[:120]]
+    page_breakdown = build_visit_page_breakdown(visits)
     has_recoverable_codes = any(recoverable_license_code(row) for row in rows)
     return {
         "ok": True,
@@ -802,6 +839,7 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
         "licenses": dashboard_licenses,
         "events": dashboard_events,
         "visits": dashboard_visits,
+        "visitPageBreakdown": page_breakdown,
         "resultCount": len(filtered_rows),
         "totalCount": len(rows),
     }
