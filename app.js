@@ -41,6 +41,56 @@ const viewAliases = {
 };
 
 const volunteerStorageKey = "xunlu.volunteerTable.standardText.v2";
+const visitorStorageKey = "xunlu.siteVisitorId.v1";
+const sessionStorageKey = "xunlu.siteSessionId.v1";
+
+function makeClientId(prefix = "id") {
+  if (window.crypto?.randomUUID) {
+    return `${prefix}-${window.crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function getStoredClientId(storage, key, prefix) {
+  try {
+    let value = storage.getItem(key);
+    if (!value) {
+      value = makeClientId(prefix);
+      storage.setItem(key, value);
+    }
+    return value;
+  } catch {
+    return makeClientId(prefix);
+  }
+}
+
+function trackSiteVisit() {
+  if (document.body.dataset.currentView === "license-admin") return;
+  const payload = {
+    visitorId: getStoredClientId(window.localStorage, visitorStorageKey, "visitor"),
+    sessionId: getStoredClientId(window.sessionStorage, sessionStorageKey, "session"),
+    path: `${window.location.pathname || "/"}${window.location.hash || ""}`,
+    view: document.body.dataset.currentView || getRouteView(),
+    referrer: document.referrer || "",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+    screen: `${window.screen?.width || 0}x${window.screen?.height || 0}`
+  };
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: "application/json" });
+      if (navigator.sendBeacon("/api/visit", blob)) return;
+    }
+  } catch {
+    // Visitor tracking should never interrupt the main product flow.
+  }
+  fetch("/api/visit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    keepalive: true
+  }).catch(() => {});
+}
 
 function getAvailableViews() {
   return new Set(Array.from(document.querySelectorAll(".app-view[data-view]")).map((section) => section.dataset.view));
@@ -400,13 +450,17 @@ function renderAdminMetricGrid(stats = {}) {
   const target = document.querySelector("#adminMetricGrid");
   if (!target) return;
   const cards = [
-    ["授权客户数", stats.customerCount ?? 0, "按授权码/备注统计", "users"],
-    ["实际使用设备", stats.uniqueDeviceCount ?? 0, "按使用事件统计", "monitor-check"],
+    ["今日访客", stats.todayVisitorCount ?? 0, "今日打开网站的独立访客", "eye"],
+    ["累计访客", stats.uniqueVisitorCount ?? 0, "按浏览器匿名访客统计", "users"],
+    ["今日打开", stats.todayVisitCount ?? 0, "今日页面打开次数", "mouse-pointer"],
+    ["7日访客", stats.weekVisitorCount ?? 0, "最近7天独立访客", "calendar-days"],
+    ["累计打开", stats.totalVisitCount ?? 0, "网站累计打开记录", "bar-chart-3"],
+    ["授权客户数", stats.customerCount ?? 0, "按授权码/备注统计", "badge-check"],
+    ["实际使用设备", stats.uniqueDeviceCount ?? 0, "按授权码事件统计", "monitor-check"],
     ["已生成报告", stats.reportCount ?? 0, "成功扣次记录", "file-check-2"],
     ["今日生成", stats.todayReportCount ?? 0, "今日完整报告", "calendar-check"],
     ["可用授权码", stats.activeLicenseCount ?? 0, "当前可验证使用", "badge-check"],
     ["剩余次数", stats.remainingFiniteUses ?? 0, "不含填报季卡", "gauge"],
-    ["已使用授权码", stats.usedLicenseCount ?? 0, "至少生成过报告", "activity"],
     ["即将到期", stats.expiringSoonCount ?? 0, "14天内到期", "clock-alert"]
   ];
   target.innerHTML = cards
@@ -545,11 +599,90 @@ function renderAdminEventTable(events = []) {
   createIcons();
 }
 
+function adminVisitViewLabel(view, path = "") {
+  const labels = {
+    home: "首页",
+    product: "产品介绍",
+    checkup: "在线评估",
+    volunteers: "志愿表",
+    sample: "报告样例",
+    pricing: "服务方案"
+  };
+  return labels[view] || path || "-";
+}
+
+function renderAdminVisitTable(visits = [], hasVisitTable = true) {
+  const target = document.querySelector("#adminVisitTable");
+  const countNode = document.querySelector("#adminVisitCount");
+  if (!target) return;
+  if (countNode) {
+    countNode.textContent = hasVisitTable ? `最近 ${visits.length} 条访问` : "访客统计未初始化";
+  }
+  if (!hasVisitTable) {
+    target.innerHTML = `
+      <div class="admin-empty compact">
+        <i data-lucide="database-zap" aria-hidden="true"></i>
+        <strong>访客统计还未启用</strong>
+        <p>请先在 Supabase 执行最新迁移，后台即可统计今日访客、累计访客和最近访问页面。</p>
+      </div>
+    `;
+    createIcons();
+    return;
+  }
+  if (!visits.length) {
+    target.innerHTML = `
+      <div class="admin-empty compact">
+        <i data-lucide="users-round" aria-hidden="true"></i>
+        <strong>暂无访客记录</strong>
+        <p>网站被打开后，这里会显示最近访客、访问页面和访问时间。</p>
+      </div>
+    `;
+    createIcons();
+    return;
+  }
+  target.innerHTML = `
+    <table class="admin-data-table compact-table admin-visit-table">
+      <thead>
+        <tr>
+          <th>访问时间</th>
+          <th>访问页面</th>
+          <th>访客</th>
+          <th>来源/设备</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${visits
+          .map(
+            (item) => `
+              <tr>
+                <td data-label="访问时间">${escapeHTML(formatDate(item.createdAt))}</td>
+                <td data-label="访问页面">
+                  <strong>${escapeHTML(adminVisitViewLabel(item.view, item.path))}</strong>
+                  <small>${escapeHTML(item.path || "/")}</small>
+                </td>
+                <td data-label="访客">
+                  <strong>${escapeHTML(item.visitor || "-")}</strong>
+                  <small>会话 ${escapeHTML(item.session || "-")}</small>
+                </td>
+                <td data-label="来源/设备">
+                  <strong>${escapeHTML(item.referrer ? "外部进入" : "直接访问")}</strong>
+                  <small>${escapeHTML(item.referrer || item.userAgent || `设备 ${item.device || "-"}`)}</small>
+                </td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
 function renderAdminDashboard(data) {
   latestAdminDashboard = data;
   renderAdminMetricGrid(data.stats || {});
   renderAdminLicenseTable(data);
   renderAdminEventTable(data.events || []);
+  renderAdminVisitTable(data.visits || [], data.hasVisitTable !== false);
   if (!data.canRevealCodes) {
     renderAdminStatus("后台已读取旧表结构。历史授权码只能显示前缀；应用数据库迁移后，新码可在后台查看完整码。", "warn");
   }
@@ -2913,6 +3046,7 @@ function initFileUpload() {
 
 function initInteractions() {
   initNavigation();
+  trackSiteVisit();
 
   const volunteerTextarea = document.querySelector("#volunteers");
   if (volunteerTextarea && !volunteerTextarea.value.trim()) {

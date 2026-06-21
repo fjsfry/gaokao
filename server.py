@@ -262,6 +262,12 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def china_day_start_utc(value: datetime | None = None) -> datetime:
+    china_tz = timezone(timedelta(hours=8))
+    current = value or datetime.now(timezone.utc)
+    return current.astimezone(china_tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
 def get_license_row(code_hash: str) -> dict[str, Any] | None:
     response = HTTP.get(
         supabase_service_url("report_licenses"),
@@ -505,6 +511,100 @@ def get_admin_license_events(limit: int = 300) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
+def normalize_visit_token(value: Any) -> str:
+    token = re.sub(r"[^A-Za-z0-9_.:-]+", "", str(value or "").strip())
+    return token[:160]
+
+
+def hash_visit_key(value: Any, fallback: str) -> str:
+    token = normalize_visit_token(value) or fallback
+    return hashlib.sha256(f"site-visit:{token}".encode("utf-8")).hexdigest()
+
+
+def normalize_visit_path(value: Any) -> str:
+    path = str(value or "/").strip() or "/"
+    if not path.startswith("/"):
+        path = "/"
+    return path[:512]
+
+
+def record_site_visit(payload: dict[str, Any], *, request_fingerprint: str, client_ip: str, user_agent: str) -> None:
+    path = normalize_visit_path(payload.get("path"))
+    if path.startswith("/license-admin") or str(payload.get("view") or "") == "license-admin":
+        return
+    metadata = {
+        "view": str(payload.get("view") or "")[:80],
+        "timezone": str(payload.get("timezone") or "")[:80],
+        "screen": str(payload.get("screen") or "")[:80],
+    }
+    row = {
+        "visitor_key": hash_visit_key(payload.get("visitorId"), request_fingerprint),
+        "session_key": hash_visit_key(payload.get("sessionId"), f"{request_fingerprint}:{utc_now_iso()[:10]}"),
+        "page_path": path,
+        "referrer": str(payload.get("referrer") or "")[:512],
+        "request_fingerprint": request_fingerprint,
+        "client_ip": client_ip or None,
+        "user_agent": user_agent[:500],
+        "metadata": metadata,
+    }
+    response = HTTP.post(
+        supabase_service_url("site_visits"),
+        headers=supabase_service_headers({"Prefer": "return=minimal"}),
+        data=json.dumps(row, ensure_ascii=False).encode("utf-8"),
+        timeout=8,
+    )
+    response.raise_for_status()
+
+
+def supabase_exact_count(table: str, params: dict[str, str] | None = None) -> int | None:
+    try:
+        response = HTTP.get(
+            supabase_service_url(table),
+            params={"select": "id", **(params or {})},
+            headers=supabase_service_headers({"Prefer": "count=exact", "Range": "0-0"}),
+            timeout=12,
+        )
+        response.raise_for_status()
+        content_range = response.headers.get("Content-Range", "")
+        if "/" in content_range:
+            total = content_range.rsplit("/", 1)[1]
+            if total.isdigit():
+                return int(total)
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", 0)
+        if status in {HTTPStatus.NOT_FOUND, HTTPStatus.BAD_REQUEST}:
+            return None
+        raise
+    return None
+
+
+def get_admin_site_visits(limit: int = 5000) -> tuple[list[dict[str, Any]], bool, int | None, int | None]:
+    now = datetime.now(timezone.utc)
+    today = china_day_start_utc(now)
+    try:
+        response = HTTP.get(
+            supabase_service_url("site_visits"),
+            params={
+                "select": "id,visitor_key,session_key,page_path,referrer,request_fingerprint,user_agent,metadata,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            },
+            headers=supabase_service_headers(),
+            timeout=15,
+        )
+        response.raise_for_status()
+        rows = response.json()
+        visits = rows if isinstance(rows, list) else []
+        total_count = supabase_exact_count("site_visits")
+        today_count = supabase_exact_count("site_visits", {"created_at": f"gte.{today.isoformat()}"})
+        return visits, True, total_count, today_count
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", 0)
+        if status in {HTTPStatus.NOT_FOUND, HTTPStatus.BAD_REQUEST}:
+            return [], False, None, None
+        raise
+
+
 def filter_admin_licenses(rows: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
     query = str(payload.get("query") or "").strip().lower()
     status_filter = str(payload.get("status") or "all")
@@ -604,10 +704,26 @@ def public_admin_event(event: dict[str, Any], license_lookup: dict[str, dict[str
     }
 
 
+def public_admin_visit(visit: dict[str, Any]) -> dict[str, Any]:
+    metadata = visit.get("metadata") if isinstance(visit.get("metadata"), dict) else {}
+    return {
+        "id": visit.get("id"),
+        "visitor": str(visit.get("visitor_key") or "")[:12],
+        "session": str(visit.get("session_key") or "")[:12],
+        "path": visit.get("page_path") or "/",
+        "view": metadata.get("view") or "",
+        "referrer": visit.get("referrer") or "",
+        "createdAt": visit.get("created_at"),
+        "device": str(visit.get("request_fingerprint") or "")[:12],
+        "userAgent": visit.get("user_agent") or "",
+    }
+
+
 def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
     require_license_admin(payload)
     rows, can_reveal_codes = get_admin_license_rows()
     events = get_admin_license_events()
+    visits, has_visit_table, total_visit_count, today_visit_count = get_admin_site_visits()
     events_by_license: dict[str, list[dict[str, Any]]] = {}
     for event in events:
         events_by_license.setdefault(str(event.get("license_id") or ""), []).append(event)
@@ -615,12 +731,23 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
     filtered_rows = filter_admin_licenses(rows, payload)
     license_lookup = {str(row.get("id") or ""): row for row in rows}
     now = datetime.now(timezone.utc)
-    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = china_day_start_utc(now)
     consume_events = [event for event in events if event.get("event_type") == "consume"]
     today_reports = [
         event
         for event in consume_events
         if (parse_datetime(event.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc)) >= today
+    ]
+    seven_days_ago = now - timedelta(days=7)
+    today_visits = [
+        visit
+        for visit in visits
+        if (parse_datetime(visit.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc)) >= today
+    ]
+    week_visits = [
+        visit
+        for visit in visits
+        if (parse_datetime(visit.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc)) >= seven_days_ago
     ]
     expiring_soon = [
         row
@@ -635,6 +762,9 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
         if (clean_note := split_license_vault_note(row.get("customer_note"))[0])
     }
     unique_devices = {str(event.get("request_fingerprint") or "") for event in events if event.get("request_fingerprint")}
+    unique_visitors = {str(visit.get("visitor_key") or "") for visit in visits if visit.get("visitor_key")}
+    today_unique_visitors = {str(visit.get("visitor_key") or "") for visit in today_visits if visit.get("visitor_key")}
+    week_unique_visitors = {str(visit.get("visitor_key") or "") for visit in week_visits if visit.get("visitor_key")}
     plan_counts: dict[str, int] = {}
     for row in rows:
         plan = "preview" if is_preview_license(row) else str(row.get("plan") or "unknown")
@@ -642,14 +772,21 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
 
     dashboard_licenses = [public_admin_license(row, events_by_license) for row in filtered_rows[:200]]
     dashboard_events = [public_admin_event(event, license_lookup) for event in events[:120]]
+    dashboard_visits = [public_admin_visit(visit) for visit in visits[:120]]
     has_recoverable_codes = any(recoverable_license_code(row) for row in rows)
     return {
         "ok": True,
         "canRevealCodes": can_reveal_codes or has_recoverable_codes,
         "hasLicenseCodeColumn": can_reveal_codes,
+        "hasVisitTable": has_visit_table,
         "stats": {
             "customerCount": len(unique_notes) or len(rows),
             "uniqueDeviceCount": len(unique_devices),
+            "totalVisitCount": total_visit_count if total_visit_count is not None else len(visits),
+            "todayVisitCount": today_visit_count if today_visit_count is not None else len(today_visits),
+            "uniqueVisitorCount": len(unique_visitors),
+            "todayVisitorCount": len(today_unique_visitors),
+            "weekVisitorCount": len(week_unique_visitors),
             "licenseCount": len(rows),
             "activeLicenseCount": sum(1 for row in rows if row.get("status") == "active" and license_status_label(row) != "已过期"),
             "usedLicenseCount": sum(1 for row in rows if row.get("last_used_at")),
@@ -664,6 +801,7 @@ def build_admin_dashboard(payload: dict[str, Any]) -> dict[str, Any]:
         ],
         "licenses": dashboard_licenses,
         "events": dashboard_events,
+        "visits": dashboard_visits,
         "resultCount": len(filtered_rows),
         "totalCount": len(rows),
     }
@@ -1624,6 +1762,26 @@ class AppHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
+        if self.path == "/api/visit":
+            try:
+                payload = self.read_json_payload(max_size=32 * 1024)
+                record_site_visit(
+                    payload,
+                    request_fingerprint=self.request_fingerprint(),
+                    client_ip=self.client_ip(),
+                    user_agent=self.user_agent(),
+                )
+                self.write_json({"ok": True})
+            except requests.HTTPError as exc:
+                status = getattr(exc.response, "status_code", 0)
+                if status in {HTTPStatus.NOT_FOUND, HTTPStatus.BAD_REQUEST}:
+                    self.write_json({"ok": False, "unavailable": True}, status=HTTPStatus.ACCEPTED)
+                else:
+                    self.write_json({"ok": False, "error": "访客统计暂时不可用。"}, status=HTTPStatus.ACCEPTED)
+            except Exception:
+                self.write_json({"ok": False, "unavailable": True}, status=HTTPStatus.ACCEPTED)
+            return
+
         if self.path == "/api/license/verify":
             try:
                 payload = self.read_json_payload(max_size=64 * 1024)

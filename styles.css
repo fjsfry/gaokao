@@ -10184,6 +10184,10 @@ main > section.app-view,
   box-shadow: var(--soft-shadow);
 }
 
+.admin-table-card--wide {
+  grid-column: 1 / -1;
+}
+
 .admin-card-title {
   padding: 18px 18px 14px;
   border-bottom: 1px solid var(--line);
@@ -10201,6 +10205,10 @@ main > section.app-view,
 
 .admin-data-table.compact-table {
   min-width: 560px;
+}
+
+.admin-data-table.admin-visit-table {
+  min-width: 720px;
 }
 
 .admin-data-table th,

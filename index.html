@@ -1284,10 +1284,10 @@
             </div>
 
             <div class="admin-metric-grid" id="adminMetricGrid">
-              <article><span>授权客户数</span><strong>-</strong><small>按授权码/备注统计</small></article>
-              <article><span>实际使用设备</span><strong>-</strong><small>按使用事件统计</small></article>
+              <article><span>今日访客</span><strong>-</strong><small>今日打开网站的独立访客</small></article>
+              <article><span>累计访客</span><strong>-</strong><small>按匿名访客统计</small></article>
+              <article><span>今日打开</span><strong>-</strong><small>今日页面打开次数</small></article>
               <article><span>已生成报告</span><strong>-</strong><small>成功扣次记录</small></article>
-              <article><span>今日生成</span><strong>-</strong><small>今日完整报告</small></article>
             </div>
 
             <div class="admin-filter-row">
@@ -1346,6 +1346,22 @@
                     <i data-lucide="activity" aria-hidden="true"></i>
                     <strong>暂无记录</strong>
                     <p>用户验证授权码或生成完整报告后，会在这里出现记录。</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="admin-table-card admin-table-card--wide">
+                <div class="admin-card-title">
+                  <div>
+                    <strong>最近访客</strong>
+                    <small id="adminVisitCount">等待刷新</small>
+                  </div>
+                </div>
+                <div class="admin-table-wrap" id="adminVisitTable">
+                  <div class="admin-empty compact">
+                    <i data-lucide="users-round" aria-hidden="true"></i>
+                    <strong>输入管理员口令后点击刷新后台</strong>
+                    <p>这里会显示最近打开网站的访客、访问页面、时间和来源。</p>
                   </div>
                 </div>
               </section>
